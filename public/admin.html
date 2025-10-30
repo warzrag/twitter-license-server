@@ -209,6 +209,16 @@
 
         <div class="stats" id="stats"></div>
 
+        <!-- Statistiques publiques -->
+        <div class="panel">
+            <h2>📊 Statistiques des commentaires</h2>
+            <div style="text-align: center; padding: 20px; background: linear-gradient(135deg, #238636 0%, #2ea043 100%); border-radius: 10px; margin-bottom: 20px;">
+                <div style="font-size: 48px; font-weight: bold; color: white;" id="totalCommentsCount">0</div>
+                <div style="color: rgba(255,255,255,0.9); margin-top: 5px;">Total de commentaires postés</div>
+            </div>
+            <div id="publicStats" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;"></div>
+        </div>
+
         <!-- Create Key -->
         <div class="panel">
             <h2>➕ Créer une nouvelle clé</h2>
@@ -373,6 +383,18 @@
             } catch (error) {
                 console.error(error);
             }
+
+            // Load public stats
+            try {
+                const response = await fetch(`${API_URL}/stats`);
+                const data = await response.json();
+
+                if (data.success) {
+                    displayPublicStats(data.stats);
+                }
+            } catch (error) {
+                console.error(error);
+            }
         }
 
         function displayStats(keys) {
@@ -431,6 +453,28 @@
             `).join('');
 
             document.getElementById('logsList').innerHTML = html || '<p>Aucun log</p>';
+        }
+
+        function displayPublicStats(stats) {
+            // Calculer le total
+            const total = stats.reduce((sum, stat) => sum + stat.commentsCount, 0);
+            document.getElementById('totalCommentsCount').textContent = total;
+
+            // Trier par nombre de commentaires
+            stats.sort((a, b) => b.commentsCount - a.commentsCount);
+
+            const html = stats.map(stat => `
+                <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid #667eea;">
+                    <div style="font-weight: bold; color: #333; margin-bottom: 10px;">👤 ${stat.owner}</div>
+                    <div style="font-size: 36px; font-weight: bold; color: #667eea; margin: 10px 0;">${stat.commentsCount}</div>
+                    <div style="color: #666; font-size: 14px;">commentaires postés</div>
+                    <div style="font-family: monospace; background: #e9ecef; padding: 5px 8px; border-radius: 4px; font-size: 11px; color: #666; margin-top: 10px;">
+                        ${stat.licenseKey}
+                    </div>
+                </div>
+            `).join('');
+
+            document.getElementById('publicStats').innerHTML = html || '<p>Aucune statistique disponible</p>';
         }
 
         // Auto-refresh every 10 seconds
