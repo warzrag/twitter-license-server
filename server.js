@@ -278,6 +278,77 @@ app.post('/api/admin/logs', checkAdminAuth, async (req, res) => {
     }
 });
 
+// Enregistrer un commentaire posté
+app.post('/api/log-comment', async (req, res) => {
+    const { licenseKey } = req.body;
+
+    if (!licenseKey) {
+        return res.status(400).json({
+            success: false,
+            message: 'Clé de licence manquante'
+        });
+    }
+
+    try {
+        // Vérifier que la clé existe
+        const result = await pool.query(
+            'SELECT * FROM license_keys WHERE license_key = $1',
+            [licenseKey]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Clé non trouvée'
+            });
+        }
+
+        // Logger le commentaire
+        await logAccess(licenseKey, 'comment_posted', 'success');
+
+        res.json({
+            success: true,
+            message: 'Commentaire enregistré'
+        });
+    } catch (error) {
+        console.error('Erreur log-comment:', error);
+        res.status(500).json({ success: false, message: 'Erreur serveur' });
+    }
+});
+
+// Statistiques publiques (sans authentification)
+app.get('/api/stats', async (req, res) => {
+    try {
+        // Récupérer toutes les clés actives
+        const keysResult = await pool.query(
+            'SELECT license_key, owner, created_at FROM license_keys WHERE active = true ORDER BY created_at DESC'
+        );
+
+        // Pour chaque clé, compter les commentaires
+        const stats = await Promise.all(keysResult.rows.map(async (key) => {
+            const commentsResult = await pool.query(
+                'SELECT COUNT(*) as count FROM access_logs WHERE license_key = $1 AND action = $2',
+                [key.license_key, 'comment_posted']
+            );
+
+            return {
+                owner: key.owner,
+                licenseKey: key.license_key,
+                commentsCount: parseInt(commentsResult.rows[0].count),
+                createdAt: key.created_at
+            };
+        }));
+
+        res.json({
+            success: true,
+            stats: stats
+        });
+    } catch (error) {
+        console.error('Erreur stats:', error);
+        res.status(500).json({ success: false, message: 'Erreur serveur' });
+    }
+});
+
 // Démarrer le serveur
 async function startServer() {
     await initDatabase();
