@@ -27,7 +27,9 @@ async function initDatabase() {
                 owner VARCHAR(255) NOT NULL,
                 active BOOLEAN DEFAULT true,
                 created_at TIMESTAMP DEFAULT NOW(),
-                last_used TIMESTAMP
+                last_used TIMESTAMP,
+                last_heartbeat TIMESTAMP,
+                last_ip VARCHAR(45)
             )
         `);
 
@@ -38,7 +40,20 @@ async function initDatabase() {
                 license_key VARCHAR(50) NOT NULL,
                 action VARCHAR(50) NOT NULL,
                 status VARCHAR(50) NOT NULL,
+                ip_address VARCHAR(45),
                 timestamp TIMESTAMP DEFAULT NOW()
+            )
+        `);
+
+        // Table des IPs utilisées par clé
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS key_ips (
+                id SERIAL PRIMARY KEY,
+                license_key VARCHAR(50) NOT NULL,
+                ip_address VARCHAR(45) NOT NULL,
+                first_seen TIMESTAMP DEFAULT NOW(),
+                last_seen TIMESTAMP DEFAULT NOW(),
+                UNIQUE(license_key, ip_address)
             )
         `);
 
@@ -50,15 +65,29 @@ async function initDatabase() {
     }
 }
 
-// Log d'utilisation
-async function logAccess(licenseKey, action, status) {
+// Log d'utilisation avec IP
+async function logAccess(licenseKey, action, status, ipAddress = null) {
     try {
         await pool.query(
-            'INSERT INTO access_logs (license_key, action, status) VALUES ($1, $2, $3)',
-            [licenseKey, action, status]
+            'INSERT INTO access_logs (license_key, action, status, ip_address) VALUES ($1, $2, $3, $4)',
+            [licenseKey, action, status, ipAddress]
         );
     } catch (error) {
         console.error('Erreur log:', error);
+    }
+}
+
+// Enregistrer ou mettre à jour l'IP d'une clé
+async function trackIP(licenseKey, ipAddress) {
+    try {
+        await pool.query(`
+            INSERT INTO key_ips (license_key, ip_address, first_seen, last_seen)
+            VALUES ($1, $2, NOW(), NOW())
+            ON CONFLICT (license_key, ip_address)
+            DO UPDATE SET last_seen = NOW()
+        `, [licenseKey, ipAddress]);
+    } catch (error) {
+        console.error('Erreur track IP:', error);
     }
 }
 
@@ -274,6 +303,99 @@ app.post('/api/admin/logs', checkAdminAuth, async (req, res) => {
         });
     } catch (error) {
         console.error('Erreur logs:', error);
+        res.status(500).json({ success: false, message: 'Erreur serveur' });
+    }
+});
+
+// Heartbeat - signaler que l'extension est en ligne
+app.post('/api/heartbeat', async (req, res) => {
+    const { licenseKey } = req.body;
+    const ipAddress = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+
+    if (!licenseKey) {
+        return res.status(400).json({
+            success: false,
+            message: 'Clé de licence manquante'
+        });
+    }
+
+    try {
+        // Mettre à jour le heartbeat
+        await pool.query(
+            'UPDATE license_keys SET last_heartbeat = NOW(), last_ip = $2 WHERE license_key = $1',
+            [licenseKey, ipAddress]
+        );
+
+        // Enregistrer l'IP
+        await trackIP(licenseKey, ipAddress);
+
+        res.json({
+            success: true,
+            message: 'Heartbeat enregistré'
+        });
+    } catch (error) {
+        console.error('Erreur heartbeat:', error);
+        res.status(500).json({ success: false, message: 'Erreur serveur' });
+    }
+});
+
+// Stats admin avec statut en ligne et IPs
+app.post('/api/admin/detailed-stats', checkAdminAuth, async (req, res) => {
+    try {
+        const keys Result = await pool.query(`
+            SELECT
+                license_key,
+                owner,
+                active,
+                created_at,
+                last_used,
+                last_heartbeat,
+                last_ip,
+                (last_heartbeat > NOW() - INTERVAL '60 seconds') as is_online
+            FROM license_keys
+            ORDER BY created_at DESC
+        `);
+
+        const detailedStats = await Promise.all(keysResult.rows.map(async (key) => {
+            // Compter les commentaires
+            const commentsResult = await pool.query(
+                'SELECT COUNT(*) as count FROM access_logs WHERE license_key = $1 AND action = $2',
+                [key.license_key, 'comment_posted']
+            );
+
+            // Compter les IPs uniques
+            const ipsResult = await pool.query(
+                'SELECT COUNT(DISTINCT ip_address) as count FROM key_ips WHERE license_key = $1',
+                [key.license_key]
+            );
+
+            // Récupérer les IPs
+            const ipsListResult = await pool.query(
+                'SELECT ip_address, first_seen, last_seen FROM key_ips WHERE license_key = $1 ORDER BY last_seen DESC',
+                [key.license_key]
+            );
+
+            return {
+                licenseKey: key.license_key,
+                owner: key.owner,
+                active: key.active,
+                createdAt: key.created_at,
+                lastUsed: key.last_used,
+                lastHeartbeat: key.last_heartbeat,
+                lastIp: key.last_ip,
+                isOnline: key.is_online,
+                commentsCount: parseInt(commentsResult.rows[0].count),
+                uniqueIps: parseInt(ipsResult.rows[0].count),
+                ips: ipsListResult.rows
+            };
+        }));
+
+        res.json({
+            success: true,
+            stats: detailedStats
+        });
+    } catch (error) {
+        console.error('Erreur detailed-stats:', error);
         res.status(500).json({ success: false, message: 'Erreur serveur' });
     }
 });
