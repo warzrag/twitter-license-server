@@ -57,6 +57,18 @@ async function initDatabase() {
             )
         `);
 
+        // Table des utilisateurs invités
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS guest_users (
+                id SERIAL PRIMARY KEY,
+                username VARCHAR(100) UNIQUE NOT NULL,
+                password VARCHAR(255) NOT NULL,
+                created_at TIMESTAMP DEFAULT NOW(),
+                created_by VARCHAR(50) DEFAULT 'admin',
+                last_login TIMESTAMP
+            )
+        `);
+
         console.log('✅ Base de données initialisée');
     } catch (error) {
         console.error('❌ Erreur initialisation BDD:', error);
@@ -467,6 +479,129 @@ app.get('/api/stats', async (req, res) => {
         });
     } catch (error) {
         console.error('Erreur stats:', error);
+        res.status(500).json({ success: false, message: 'Erreur serveur' });
+    }
+});
+
+// ===== ROUTES INVITÉS =====
+
+// Login (admin ou invité)
+app.post('/api/login', async (req, res) => {
+    const { username, password } = req.body;
+
+    // Vérifier si c'est l'admin
+    if (username === 'admin' && password === ADMIN_PASSWORD) {
+        return res.json({
+            success: true,
+            role: 'admin',
+            username: 'admin'
+        });
+    }
+
+    // Vérifier si c'est un invité
+    try {
+        const result = await pool.query(
+            'SELECT * FROM guest_users WHERE username = $1 AND password = $2',
+            [username, password]
+        );
+
+        if (result.rows.length > 0) {
+            // Mettre à jour last_login
+            await pool.query(
+                'UPDATE guest_users SET last_login = NOW() WHERE username = $1',
+                [username]
+            );
+
+            return res.json({
+                success: true,
+                role: 'guest',
+                username: username
+            });
+        }
+
+        res.json({
+            success: false,
+            message: 'Identifiants invalides'
+        });
+    } catch (error) {
+        console.error('Erreur login:', error);
+        res.status(500).json({ success: false, message: 'Erreur serveur' });
+    }
+});
+
+// Créer un invité (admin uniquement)
+app.post('/api/admin/create-guest', checkAdminAuth, async (req, res) => {
+    const { username, guestPassword } = req.body;
+
+    if (!username || !guestPassword) {
+        return res.status(400).json({
+            success: false,
+            message: 'Username et password requis'
+        });
+    }
+
+    try {
+        await pool.query(
+            'INSERT INTO guest_users (username, password) VALUES ($1, $2)',
+            [username, guestPassword]
+        );
+
+        res.json({
+            success: true,
+            message: 'Invité créé avec succès'
+        });
+    } catch (error) {
+        if (error.code === '23505') { // Duplicate key
+            return res.status(400).json({
+                success: false,
+                message: 'Ce nom d\'utilisateur existe déjà'
+            });
+        }
+        console.error('Erreur create-guest:', error);
+        res.status(500).json({ success: false, message: 'Erreur serveur' });
+    }
+});
+
+// Liste des invités (admin uniquement)
+app.post('/api/admin/guests', checkAdminAuth, async (req, res) => {
+    try {
+        const result = await pool.query(
+            'SELECT id, username, created_at, last_login FROM guest_users ORDER BY created_at DESC'
+        );
+
+        res.json({
+            success: true,
+            guests: result.rows
+        });
+    } catch (error) {
+        console.error('Erreur guests:', error);
+        res.status(500).json({ success: false, message: 'Erreur serveur' });
+    }
+});
+
+// Supprimer un invité (admin uniquement)
+app.post('/api/admin/delete-guest', checkAdminAuth, async (req, res) => {
+    const { username } = req.body;
+
+    try {
+        const result = await pool.query(
+            'DELETE FROM guest_users WHERE username = $1 RETURNING *',
+            [username]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Invité non trouvé'
+            });
+        }
+
+        res.json({
+            success: true,
+            message: 'Invité supprimé'
+        });
+    } catch (error) {
+        console.error('Erreur delete-guest:', error);
         res.status(500).json({ success: false, message: 'Erreur serveur' });
     }
 });

@@ -308,10 +308,11 @@
 <body>
     <!-- Login -->
     <div id="loginBox" class="login-box">
-        <h2 style="margin-bottom: 20px; text-align: center;">🔐 Connexion Admin</h2>
-        <input type="password" id="password" placeholder="Mot de passe admin">
+        <h2 style="margin-bottom: 20px; text-align: center; color: #c9d1d9;">🔐 Connexion</h2>
+        <input type="text" id="username" placeholder="Nom d'utilisateur" style="color: #c9d1d9;">
+        <input type="password" id="password" placeholder="Mot de passe" style="color: #c9d1d9;">
         <button onclick="login()">Se connecter</button>
-        <div id="loginError" style="color: red; margin-top: 10px; text-align: center;"></div>
+        <div id="loginError" style="color: #f85149; margin-top: 10px; text-align: center;"></div>
     </div>
 
     <!-- Admin Panel -->
@@ -350,6 +351,17 @@
             <div id="keysList"></div>
         </div>
 
+        <!-- Guests Management (Admin only) -->
+        <div class="panel" id="guestsPanel" style="display: none;">
+            <h2>👥 Gestion des invités</h2>
+            <div style="margin-bottom: 20px;">
+                <input type="text" id="newGuestUsername" placeholder="Nom d'utilisateur">
+                <input type="password" id="newGuestPassword" placeholder="Mot de passe">
+                <button onclick="createGuest()">Créer un invité</button>
+            </div>
+            <div id="guestsList"></div>
+        </div>
+
         <!-- Logs -->
         <div class="panel">
             <h2>📊 Logs d'activité (100 derniers)</h2>
@@ -360,29 +372,57 @@
     <script>
         const API_URL = window.location.origin + '/api';
         let adminPassword = '';
+        let userRole = '';
+        let username = '';
 
         async function login() {
+            const usernameInput = document.getElementById('username').value;
             const password = document.getElementById('password').value;
 
             try {
-                const response = await fetch(`${API_URL}/admin/keys`, {
+                const response = await fetch(`${API_URL}/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ password })
+                    body: JSON.stringify({ username: usernameInput, password })
                 });
 
                 const data = await response.json();
 
                 if (data.success) {
                     adminPassword = password;
+                    userRole = data.role;
+                    username = data.username;
+
                     document.getElementById('loginBox').classList.add('hidden');
                     document.getElementById('adminPanel').classList.remove('hidden');
+
+                    // Afficher/cacher les éléments selon le rôle
+                    setupPermissions();
                     loadData();
                 } else {
-                    document.getElementById('loginError').textContent = 'Mot de passe incorrect';
+                    document.getElementById('loginError').textContent = data.message || 'Identifiants incorrects';
                 }
             } catch (error) {
                 document.getElementById('loginError').textContent = 'Erreur de connexion au serveur';
+            }
+        }
+
+        function setupPermissions() {
+            // Si guest, cacher les sections admin
+            if (userRole === 'guest') {
+                // Cacher la section création de clé
+                document.querySelector('.panel:has(#newOwner)').style.display = 'none';
+                // Cacher la section invités
+                document.getElementById('guestsPanel').style.display = 'none';
+                // Désactiver tous les boutons d'action
+                setTimeout(() => {
+                    document.querySelectorAll('.key-actions button').forEach(btn => {
+                        btn.style.display = 'none';
+                    });
+                }, 1000);
+            } else {
+                // Admin : tout afficher
+                document.getElementById('guestsPanel').style.display = 'block';
             }
         }
 
@@ -512,6 +552,11 @@
                 }
             } catch (error) {
                 console.error(error);
+            }
+
+            // Load guests (admin only)
+            if (userRole === 'admin') {
+                loadGuests();
             }
         }
 
@@ -645,10 +690,116 @@
             document.getElementById('publicStats').innerHTML = html || (stats.length <= 3 ? '' : '<p style="color: #8b949e; text-align: center;">Aucune autre statistique</p>');
         }
 
+        // === GESTION DES INVITÉS ===
+
+        async function createGuest() {
+            const usernameInput = document.getElementById('newGuestUsername').value;
+            const guestPassword = document.getElementById('newGuestPassword').value;
+
+            if (!usernameInput || !guestPassword) {
+                alert('Remplissez tous les champs');
+                return;
+            }
+
+            try {
+                const payload = {
+                    password: adminPassword,  // Pour l'auth admin
+                    username: usernameInput,  // Username du guest
+                    guestPassword: guestPassword  // Password du guest
+                };
+                // Le serveur attend "password" pour le guest, donc on le renomme
+                payload.password = guestPassword;
+                payload.adminPassword = adminPassword;
+
+                const response = await fetch(`${API_URL}/admin/create-guest`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        password: adminPassword,  // Pour checkAdminAuth
+                        username: usernameInput,
+                        guestPassword: guestPassword
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    alert(`Invité créé avec succès !\n\nUsername: ${usernameInput}\nPassword: ${guestPassword}\n\nDonnez ces identifiants à l'invité.`);
+                    document.getElementById('newGuestUsername').value = '';
+                    document.getElementById('newGuestPassword').value = '';
+                    loadGuests();
+                } else {
+                    alert(data.message || 'Erreur lors de la création');
+                }
+            } catch (error) {
+                alert('Erreur de connexion');
+            }
+        }
+
+        async function loadGuests() {
+            if (userRole !== 'admin') return;
+
+            try {
+                const response = await fetch(`${API_URL}/admin/guests`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: adminPassword })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    displayGuests(data.guests);
+                }
+            } catch (error) {
+                console.error('Erreur load guests:', error);
+            }
+        }
+
+        function displayGuests(guests) {
+            const html = guests.map(guest => `
+                <div class="key-card">
+                    <div style="font-size: 18px; font-weight: bold; color: #c9d1d9 !important; margin-bottom: 10px;">👤 ${guest.username}</div>
+                    <div class="key-info">
+                        Créé: ${new Date(guest.created_at).toLocaleString('fr-FR')}<br>
+                        Dernière connexion: ${guest.last_login ? new Date(guest.last_login).toLocaleString('fr-FR') : 'Jamais'}
+                    </div>
+                    <div class="key-actions">
+                        <button class="btn-danger" onclick="deleteGuest('${guest.username}')">🗑️ Supprimer</button>
+                    </div>
+                </div>
+            `).join('');
+
+            document.getElementById('guestsList').innerHTML = html || '<p style="color: #8b949e; text-align: center;">Aucun invité</p>';
+        }
+
+        async function deleteGuest(username) {
+            if (!confirm(`Supprimer l'invité ${username} ?`)) return;
+
+            try {
+                const response = await fetch(`${API_URL}/admin/delete-guest`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: adminPassword, username })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    loadGuests();
+                }
+            } catch (error) {
+                alert('Erreur lors de la suppression');
+            }
+        }
+
         // Auto-refresh every 10 seconds
         setInterval(() => {
             if (adminPassword) {
                 loadData();
+                if (userRole === 'admin') {
+                    loadGuests();
+                }
             }
         }, 10000);
     </script>
