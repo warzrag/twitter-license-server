@@ -539,14 +539,14 @@
         function displayKeys(keys) {
             const html = Object.entries(keys).map(([key, data]) => `
                 <div class="key-card ${data.active ? '' : 'inactive'}">
-                    <strong>${data.owner}</strong>
+                    <div style="font-size: 18px; font-weight: bold; color: #c9d1d9; margin-bottom: 10px;">👤 ${data.owner}</div>
                     <div class="key-code">${key}</div>
                     <div class="key-info">
                         Créée: ${new Date(data.createdAt).toLocaleString('fr-FR')}<br>
                         Dernière utilisation: ${data.lastUsed ? new Date(data.lastUsed).toLocaleString('fr-FR') : 'Jamais'}
                     </div>
                     <div class="key-actions">
-                        <button onclick="copyKey('${key}')" style="background: #3498db;">📋 Copier</button>
+                        <button onclick="copyKey('${key}')" style="background: linear-gradient(135deg, #1f6feb, #58a6ff); box-shadow: 0 4px 12px rgba(31, 111, 235, 0.3);">📋 Copier</button>
                         <button class="${data.active ? 'btn-danger' : 'btn-success'}" onclick="toggleKey('${key}')">
                             ${data.active ? '❌ Désactiver' : '✅ Activer'}
                         </button>
@@ -555,7 +555,7 @@
                 </div>
             `).join('');
 
-            document.getElementById('keysList').innerHTML = html || '<p>Aucune clé créée</p>';
+            document.getElementById('keysList').innerHTML = html || '<p style="color: #8b949e; text-align: center;">Aucune clé créée</p>';
         }
 
         function displayLogs(logs) {
