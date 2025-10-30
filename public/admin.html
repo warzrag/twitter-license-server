@@ -276,13 +276,26 @@
                 const data = await response.json();
 
                 if (data.success) {
-                    alert(`Clé créée avec succès !\n\nClé: ${data.licenseKey}\n\nDonnez cette clé à ${owner}`);
+                    // Copier dans le presse-papier
+                    navigator.clipboard.writeText(data.licenseKey).then(() => {
+                        alert(`Clé créée avec succès !\n\nClé: ${data.licenseKey}\n\n✅ Copiée dans le presse-papier !\n\nDonnez cette clé à ${owner}`);
+                    }).catch(() => {
+                        alert(`Clé créée avec succès !\n\nClé: ${data.licenseKey}\n\nDonnez cette clé à ${owner}`);
+                    });
                     document.getElementById('newOwner').value = '';
                     loadData();
                 }
             } catch (error) {
                 alert('Erreur lors de la création');
             }
+        }
+
+        function copyKey(licenseKey) {
+            navigator.clipboard.writeText(licenseKey).then(() => {
+                alert('✅ Clé copiée dans le presse-papier !\n\n' + licenseKey);
+            }).catch(() => {
+                alert('Clé: ' + licenseKey);
+            });
         }
 
         async function toggleKey(licenseKey) {
@@ -393,6 +406,7 @@
                         Dernière utilisation: ${data.lastUsed ? new Date(data.lastUsed).toLocaleString('fr-FR') : 'Jamais'}
                     </div>
                     <div class="key-actions">
+                        <button onclick="copyKey('${key}')" style="background: #3498db;">📋 Copier</button>
                         <button class="${data.active ? 'btn-danger' : 'btn-success'}" onclick="toggleKey('${key}')">
                             ${data.active ? '❌ Désactiver' : '✅ Activer'}
                         </button>
