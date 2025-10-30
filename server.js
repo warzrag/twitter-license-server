@@ -342,7 +342,7 @@ app.post('/api/heartbeat', async (req, res) => {
 // Stats admin avec statut en ligne et IPs
 app.post('/api/admin/detailed-stats', checkAdminAuth, async (req, res) => {
     try {
-        const keys Result = await pool.query(`
+        const keysResult = await pool.query(`
             SELECT
                 license_key,
                 owner,
