@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Twitter Commenter - Panneau Admin</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+        }
+
+        .login-box {
+            background: white;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            max-width: 400px;
+            margin: 100px auto;
+        }
+
+        .panel {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .panel h2 {
+            color: #333;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        input, button {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background: #5568d3;
+        }
+
+        .btn-danger {
+            background: #e74c3c;
+        }
+
+        .btn-danger:hover {
+            background: #c0392b;
+        }
+
+        .btn-success {
+            background: #27ae60;
+        }
+
+        .btn-success:hover {
+            background: #229954;
+        }
+
+        .key-card {
+            background: #f8f9fa;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border-left: 4px solid #667eea;
+        }
+
+        .key-card.inactive {
+            border-left-color: #e74c3c;
+            opacity: 0.6;
+        }
+
+        .key-code {
+            font-family: monospace;
+            background: #333;
+            color: #0f0;
+            padding: 5px 10px;
+            border-radius: 3px;
+            display: inline-block;
+            margin: 5px 0;
+        }
+
+        .key-info {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .key-actions {
+            margin-top: 10px;
+        }
+
+        .key-actions button {
+            width: auto;
+            padding: 8px 15px;
+            margin-right: 10px;
+            font-size: 12px;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .log-entry {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            font-size: 13px;
+        }
+
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+
+        .status-success {
+            color: #27ae60;
+        }
+
+        .status-error {
+            color: #e74c3c;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 36px;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .stat-label {
+            color: #666;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Login -->
+    <div id="loginBox" class="login-box">
+        <h2 style="margin-bottom: 20px; text-align: center;">🔐 Connexion Admin</h2>
+        <input type="password" id="password" placeholder="Mot de passe admin">
+        <button onclick="login()">Se connecter</button>
+        <div id="loginError" style="color: red; margin-top: 10px; text-align: center;"></div>
+    </div>
+
+    <!-- Admin Panel -->
+    <div id="adminPanel" class="hidden container">
+        <div class="header">
+            <h1>🔐 Twitter Commenter - Panneau Admin</h1>
+            <p class="subtitle">Gérez les licences et l'accès à l'extension</p>
+        </div>
+
+        <div class="stats" id="stats"></div>
+
+        <!-- Create Key -->
+        <div class="panel">
+            <h2>➕ Créer une nouvelle clé</h2>
+            <input type="text" id="newOwner" placeholder="Nom du propriétaire (ex: Jean Dupont)">
+            <button onclick="createKey()">Créer la clé</button>
+        </div>
+
+        <!-- Keys List -->
+        <div class="panel">
+            <h2>🔑 Clés actives</h2>
+            <div id="keysList"></div>
+        </div>
+
+        <!-- Logs -->
+        <div class="panel">
+            <h2>📊 Logs d'activité (100 derniers)</h2>
+            <div id="logsList"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:3000/api';
+        let adminPassword = '';
+
+        async function login() {
+            const password = document.getElementById('password').value;
+
+            try {
+                const response = await fetch(`${API_URL}/admin/keys`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    adminPassword = password;
+                    document.getElementById('loginBox').classList.add('hidden');
+                    document.getElementById('adminPanel').classList.remove('hidden');
+                    loadData();
+                } else {
+                    document.getElementById('loginError').textContent = 'Mot de passe incorrect';
+                }
+            } catch (error) {
+                document.getElementById('loginError').textContent = 'Erreur de connexion au serveur';
+            }
+        }
+
+        async function createKey() {
+            const owner = document.getElementById('newOwner').value;
+
+            if (!owner) {
+                alert('Entrez un nom de propriétaire');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/admin/create-key`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: adminPassword, owner })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    alert(`Clé créée avec succès !\n\nClé: ${data.licenseKey}\n\nDonnez cette clé à ${owner}`);
+                    document.getElementById('newOwner').value = '';
+                    loadData();
+                }
+            } catch (error) {
+                alert('Erreur lors de la création');
+            }
+        }
+
+        async function toggleKey(licenseKey) {
+            try {
+                const response = await fetch(`${API_URL}/admin/toggle-key`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: adminPassword, licenseKey })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    loadData();
+                }
+            } catch (error) {
+                alert('Erreur');
+            }
+        }
+
+        async function deleteKey(licenseKey) {
+            if (!confirm('Êtes-vous sûr de vouloir supprimer cette clé ?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/admin/delete-key`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: adminPassword, licenseKey })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    loadData();
+                }
+            } catch (error) {
+                alert('Erreur');
+            }
+        }
+
+        async function loadData() {
+            // Load keys
+            try {
+                const response = await fetch(`${API_URL}/admin/keys`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: adminPassword })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    displayKeys(data.keys);
+                    displayStats(data.keys);
+                }
+            } catch (error) {
+                console.error(error);
+            }
+
+            // Load logs
+            try {
+                const response = await fetch(`${API_URL}/admin/logs`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: adminPassword })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    displayLogs(data.logs);
+                }
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
+        function displayStats(keys) {
+            const total = Object.keys(keys).length;
+            const active = Object.values(keys).filter(k => k.active).length;
+            const inactive = total - active;
+
+            document.getElementById('stats').innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-number">${total}</div>
+                    <div class="stat-label">Total clés</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" style="color: #27ae60;">${active}</div>
+                    <div class="stat-label">Actives</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" style="color: #e74c3c;">${inactive}</div>
+                    <div class="stat-label">Inactives</div>
+                </div>
+            `;
+        }
+
+        function displayKeys(keys) {
+            const html = Object.entries(keys).map(([key, data]) => `
+                <div class="key-card ${data.active ? '' : 'inactive'}">
+                    <strong>${data.owner}</strong>
+                    <div class="key-code">${key}</div>
+                    <div class="key-info">
+                        Créée: ${new Date(data.createdAt).toLocaleString('fr-FR')}<br>
+                        Dernière utilisation: ${data.lastUsed ? new Date(data.lastUsed).toLocaleString('fr-FR') : 'Jamais'}
+                    </div>
+                    <div class="key-actions">
+                        <button class="${data.active ? 'btn-danger' : 'btn-success'}" onclick="toggleKey('${key}')">
+                            ${data.active ? '❌ Désactiver' : '✅ Activer'}
+                        </button>
+                        <button class="btn-danger" onclick="deleteKey('${key}')">🗑️ Supprimer</button>
+                    </div>
+                </div>
+            `).join('');
+
+            document.getElementById('keysList').innerHTML = html || '<p>Aucune clé créée</p>';
+        }
+
+        function displayLogs(logs) {
+            const html = logs.map(log => `
+                <div class="log-entry">
+                    <strong>${new Date(log.timestamp).toLocaleString('fr-FR')}</strong> -
+                    ${log.licenseKey} -
+                    ${log.action} -
+                    <span class="${log.status.includes('success') ? 'status-success' : 'status-error'}">
+                        ${log.status}
+                    </span>
+                </div>
+            `).join('');
+
+            document.getElementById('logsList').innerHTML = html || '<p>Aucun log</p>';
+        }
+
+        // Auto-refresh every 10 seconds
+        setInterval(() => {
+            if (adminPassword) {
+                loadData();
+            }
+        }, 10000);
+    </script>
+</body>
+</html>
