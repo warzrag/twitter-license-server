@@ -45,11 +45,19 @@ async function initDatabase() {
             )
         `);
 
-        // Ajouter la colonne ip_address si elle n'existe pas (migration)
-        await client.query(`
-            ALTER TABLE access_logs
-            ADD COLUMN IF NOT EXISTS ip_address VARCHAR(45)
-        `);
+        // Ajouter la colonne ip_address si elle n'existe pas (migration compatible PostgreSQL)
+        try {
+            await client.query(`
+                ALTER TABLE access_logs
+                ADD COLUMN ip_address VARCHAR(45)
+            `);
+            console.log('✅ Colonne ip_address ajoutée');
+        } catch (error) {
+            // La colonne existe déjà, c'est normal
+            if (error.code !== '42701') { // 42701 = duplicate_column
+                console.error('⚠️ Erreur migration ip_address:', error.message);
+            }
+        }
 
         // Table des IPs utilisées par clé
         await client.query(`
