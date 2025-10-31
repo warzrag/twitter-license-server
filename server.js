@@ -45,6 +45,12 @@ async function initDatabase() {
             )
         `);
 
+        // Ajouter la colonne ip_address si elle n'existe pas (migration)
+        await client.query(`
+            ALTER TABLE access_logs
+            ADD COLUMN IF NOT EXISTS ip_address VARCHAR(45)
+        `);
+
         // Table des IPs utilisées par clé
         await client.query(`
             CREATE TABLE IF NOT EXISTS key_ips (
