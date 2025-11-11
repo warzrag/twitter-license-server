@@ -1007,6 +1007,7 @@
                             Dernière connexion: ${user.last_login ? new Date(user.last_login).toLocaleString('fr-FR') : 'Jamais'}
                         </div>
                         <div class="key-actions">
+                            <button style="background: linear-gradient(135deg, #f39c12, #f1c40f); box-shadow: 0 4px 12px rgba(243, 156, 18, 0.3);" onclick="openEditRoleModal('${user.username}', '${user.role}', '${user.license_key || ''}')">✏️ Modifier rôle</button>
                             <button class="btn-danger" onclick="deleteUser('${user.username}')">🗑️ Supprimer</button>
                         </div>
                     </div>
