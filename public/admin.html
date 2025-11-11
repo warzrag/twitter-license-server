@@ -332,21 +332,11 @@
 
         <!-- Vue Admin/Creator -->
         <div id="adminView">
-            <div class="stats" id="stats"></div>
-
-            <!-- Statistiques publiques -->
-            <div class="panel">
-                <h2>📊 Statistiques des commentaires</h2>
-            <div style="text-align: center; padding: 20px; background: linear-gradient(135deg, #238636 0%, #2ea043 100%); border-radius: 10px; margin-bottom: 20px;">
-                <div style="font-size: 48px; font-weight: bold; color: white;" id="totalCommentsCount">0</div>
-                <div style="color: rgba(255,255,255,0.9); margin-top: 5px;">Total de commentaires postés</div>
+            <!-- Keys with Users View - EN PREMIER -->
+            <div class="panel" style="background: linear-gradient(135deg, rgba(31, 111, 235, 0.05), rgba(88, 166, 255, 0.05)); border: 2px solid #1f6feb;">
+                <h2 style="font-size: 28px; border-bottom: 3px solid #58a6ff;">🔑 Vue complète : TOUTES les Clés et Utilisateurs</h2>
+                <div id="keysWithUsersList"></div>
             </div>
-
-            <!-- Podium Top 3 -->
-            <div id="podium" style="display: flex; align-items: flex-end; justify-content: center; gap: 20px; margin-bottom: 30px; min-height: 200px;"></div>
-
-            <div id="publicStats" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;"></div>
-        </div>
 
             <!-- Create Key -->
             <div class="panel" id="createKeyPanel">
@@ -374,11 +364,21 @@
                 <div id="usersList"></div>
             </div>
 
-            <!-- Keys with Users View -->
+            <div class="stats" id="stats"></div>
+
+            <!-- Statistiques publiques -->
             <div class="panel">
-                <h2>🔑 Vue complète : Clés et Utilisateurs</h2>
-                <div id="keysWithUsersList"></div>
+                <h2>📊 Statistiques des commentaires</h2>
+            <div style="text-align: center; padding: 20px; background: linear-gradient(135deg, #238636 0%, #2ea043 100%); border-radius: 10px; margin-bottom: 20px;">
+                <div style="font-size: 48px; font-weight: bold; color: white;" id="totalCommentsCount">0</div>
+                <div style="color: rgba(255,255,255,0.9); margin-top: 5px;">Total de commentaires postés</div>
             </div>
+
+            <!-- Podium Top 3 -->
+            <div id="podium" style="display: flex; align-items: flex-end; justify-content: center; gap: 20px; margin-bottom: 30px; min-height: 200px;"></div>
+
+            <div id="publicStats" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;"></div>
+        </div>
 
             <!-- Keys List -->
             <div class="panel">
@@ -704,12 +704,24 @@
             // Calculer les totaux
             const totalKeys = keysWithUsers.length;
             const activeKeys = keysWithUsers.filter(k => k.active).length;
+            const inactiveKeys = totalKeys - activeKeys;
             const totalVAs = keysWithUsers.reduce((sum, key) => sum + key.users.filter(u => u.role === 'va').length, 0);
             const totalAdmins = (adminsWithoutKeys ? adminsWithoutKeys.length : 0) + keysWithUsers.reduce((sum, key) => sum + key.users.filter(u => u.role === 'admin').length, 0);
             const totalComments = keysWithUsers.reduce((sum, key) => sum + key.commentsCount, 0);
 
-            // Résumé en haut
+            console.log(`📊 Vue complète: Affichage de ${totalKeys} clés (${activeKeys} actives, ${inactiveKeys} inactives)`);
+
+            // Résumé en haut avec titre clair
             const summaryHTML = `
+                <div style="background: linear-gradient(135deg, #1f6feb, #58a6ff); padding: 20px; border-radius: 12px; margin-bottom: 25px; text-align: center; box-shadow: 0 8px 24px rgba(31, 111, 235, 0.4);">
+                    <h3 style="color: white; font-size: 24px; margin-bottom: 15px;">📋 Récapitulatif Global</h3>
+                    <div style="color: rgba(255,255,255,0.95); font-size: 16px;">
+                        Affichage de <strong style="font-size: 20px;">${totalKeys}</strong> clés de licence |
+                        <strong style="color: #2ea043;">${activeKeys}</strong> actives |
+                        <strong style="color: #f85149;">${inactiveKeys}</strong> inactives
+                    </div>
+                </div>
+
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 30px;">
                     <div style="background: linear-gradient(135deg, #1f6feb, #58a6ff); padding: 20px; border-radius: 12px; text-align: center; box-shadow: 0 4px 12px rgba(31, 111, 235, 0.3);">
                         <div style="font-size: 36px; font-weight: bold; color: white;">${totalKeys}</div>
@@ -763,8 +775,9 @@
                 `;
             }
 
-            // Section Clés avec utilisateurs
-            const html = keysWithUsers.map(key => {
+            // Section Clés avec utilisateurs - NUMÉROTÉES
+            const html = keysWithUsers.map((key, index) => {
+                const keyNumber = index + 1;
                 const usersHTML = key.users.length > 0
                     ? key.users.map(user => `
                         <div style="background: #161b22; padding: 12px; border-radius: 8px; margin-top: 8px; border-left: 3px solid ${user.role === 'admin' ? '#1f6feb' : '#58a6ff'};">
@@ -783,8 +796,11 @@
                     : '<div style="color: #8b949e; font-style: italic; margin-top: 8px;">Aucun utilisateur assigné</div>';
 
                 return `
-                    <div class="key-card ${key.active ? '' : 'inactive'}" style="margin-bottom: 20px;">
-                        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
+                    <div class="key-card ${key.active ? '' : 'inactive'}" style="margin-bottom: 20px; position: relative;">
+                        <div style="position: absolute; top: 10px; left: 10px; background: linear-gradient(135deg, #1f6feb, #58a6ff); color: white; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px; box-shadow: 0 4px 12px rgba(31, 111, 235, 0.4);">
+                            ${keyNumber}
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px; padding-left: 50px;">
                             <div style="flex: 1;">
                                 <div style="font-size: 18px; font-weight: bold; color: #c9d1d9 !important; margin-bottom: 8px;">👤 ${key.owner}</div>
                                 <div class="key-code">${key.licenseKey}</div>
