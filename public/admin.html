@@ -779,22 +779,9 @@
             // Section Clés avec utilisateurs - NUMÉROTÉES
             const html = keysWithUsers.map((key, index) => {
                 const keyNumber = index + 1;
-                const usersHTML = key.users.length > 0
-                    ? key.users.map(user => `
-                        <div style="background: #161b22; padding: 12px; border-radius: 8px; margin-top: 8px; border-left: 3px solid ${user.role === 'admin' ? '#1f6feb' : '#58a6ff'};">
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <div>
-                                    <span style="color: #c9d1d9; font-weight: bold;">${user.role === 'admin' ? '🔐' : '📊'} ${user.username}</span>
-                                    <span style="background: linear-gradient(135deg, #1f6feb, #58a6ff); color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-left: 8px;">${user.role === 'admin' ? 'Admin' : 'VA'}</span>
-                                </div>
-                                <button onclick="openEditRoleModal('${user.username}', '${user.role}', '${key.licenseKey}')" style="background: linear-gradient(135deg, #f39c12, #f1c40f); color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; box-shadow: 0 2px 8px rgba(243, 156, 18, 0.3);">✏️ Modifier rôle</button>
-                            </div>
-                            <div style="color: #8b949e; font-size: 12px; margin-top: 6px;">
-                                Dernière connexion: ${user.last_login ? new Date(user.last_login).toLocaleString('fr-FR') : 'Jamais'}
-                            </div>
-                        </div>
-                    `).join('')
-                    : '<div style="color: #8b949e; font-style: italic; margin-top: 8px;">Aucun utilisateur assigné</div>';
+                const roleEmoji = key.role === 'admin' ? '🔐' : '📊';
+                const roleLabel = key.role === 'admin' ? 'Admin' : 'VA';
+                const roleColor = key.role === 'admin' ? '#1f6feb' : '#8250df';
 
                 return `
                     <div class="key-card ${key.active ? '' : 'inactive'}" style="margin-bottom: 20px; position: relative;">
@@ -803,7 +790,11 @@
                         </div>
                         <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px; padding-left: 50px;">
                             <div style="flex: 1;">
-                                <div style="font-size: 18px; font-weight: bold; color: #c9d1d9 !important; margin-bottom: 8px;">👤 ${key.owner}</div>
+                                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                                    <span style="font-size: 18px; font-weight: bold; color: #c9d1d9 !important;">👤 ${key.owner}</span>
+                                    <span style="background: linear-gradient(135deg, ${roleColor}, ${roleColor}dd); color: white; padding: 4px 12px; border-radius: 6px; font-size: 13px; font-weight: 600; box-shadow: 0 2px 8px ${roleColor}33;">${roleEmoji} ${roleLabel}</span>
+                                    <button onclick="openEditKeyRoleModal('${key.licenseKey}', '${key.role}', '${key.owner}')" style="background: linear-gradient(135deg, #f39c12, #f1c40f); color: white; border: none; padding: 4px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; box-shadow: 0 2px 8px rgba(243, 156, 18, 0.3);">✏️ Changer le rôle</button>
+                                </div>
                                 <div class="key-code">${key.licenseKey}</div>
                             </div>
                             <div style="text-align: right;">
@@ -813,15 +804,10 @@
                         </div>
 
                         <div style="border-top: 1px solid #30363d; padding-top: 12px; margin-top: 12px;">
-                            <div style="color: #8b949e; font-size: 13px; margin-bottom: 8px;">
+                            <div style="color: #8b949e; font-size: 13px;">
                                 <strong style="color: #c9d1d9;">Statut:</strong> <span style="color: ${key.active ? '#2ea043' : '#f85149'}; font-weight: bold;">${key.active ? '✅ Active' : '❌ Inactive'}</span> |
                                 <strong style="color: #c9d1d9;">Créée:</strong> ${new Date(key.createdAt).toLocaleString('fr-FR')} |
                                 <strong style="color: #c9d1d9;">Dernière utilisation:</strong> ${key.lastUsed ? new Date(key.lastUsed).toLocaleString('fr-FR') : 'Jamais'}
-                            </div>
-
-                            <div style="margin-top: 12px;">
-                                <strong style="color: #c9d1d9; font-size: 14px;">👥 Utilisateurs assignés (${key.users.length}):</strong>
-                                ${usersHTML}
                             </div>
                         </div>
                     </div>
@@ -831,6 +817,66 @@
             document.getElementById('keysWithUsersList').innerHTML = summaryHTML + adminsHTML + html || '<p style="color: #8b949e; text-align: center;">Aucune clé créée</p>';
         }
 
+        // Modale pour changer le rôle d'une CLÉ
+        function openEditKeyRoleModal(licenseKey, currentRole, ownerName) {
+            const modal = `
+                <div id="editKeyRoleModal" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 1000;">
+                    <div style="background: #161b22; padding: 30px; border-radius: 16px; max-width: 500px; width: 90%; border: 1px solid #30363d; box-shadow: 0 20px 60px rgba(0,0,0,0.9);">
+                        <h2 style="color: #c9d1d9; margin-bottom: 20px;">✏️ Modifier le rôle de la clé</h2>
+                        <p style="color: #8b949e; margin-bottom: 20px;">Clé : <strong style="color: #58a6ff;">${ownerName}</strong></p>
+
+                        <label style="color: #8b949e; display: block; margin-bottom: 8px;">Nouveau rôle :</label>
+                        <select id="modalKeyRole" style="width: 100%; padding: 14px 16px; margin-bottom: 16px; border: 1px solid #30363d; border-radius: 10px; font-size: 15px; background: #0d1117; color: #c9d1d9;">
+                            <option value="admin" ${currentRole === 'admin' ? 'selected' : ''}>🔐 Admin</option>
+                            <option value="va" ${currentRole === 'va' ? 'selected' : ''}>📊 VA</option>
+                        </select>
+
+                        <div style="display: flex; gap: 10px; margin-top: 20px;">
+                            <button onclick="saveKeyRoleChanges('${licenseKey}')" style="flex: 1; background: linear-gradient(135deg, #1f6feb, #58a6ff); color: white; border: none; padding: 14px; border-radius: 10px; cursor: pointer; font-weight: 600; box-shadow: 0 4px 12px rgba(31, 111, 235, 0.3);">✅ Enregistrer</button>
+                            <button onclick="closeEditKeyRoleModal()" style="flex: 1; background: linear-gradient(135deg, #da3633, #f85149); color: white; border: none; padding: 14px; border-radius: 10px; cursor: pointer; font-weight: 600; box-shadow: 0 4px 12px rgba(218, 54, 51, 0.3);">❌ Annuler</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.body.insertAdjacentHTML('beforeend', modal);
+        }
+
+        function closeEditKeyRoleModal() {
+            const modal = document.getElementById('editKeyRoleModal');
+            if (modal) modal.remove();
+        }
+
+        async function saveKeyRoleChanges(licenseKey) {
+            const newRole = document.getElementById('modalKeyRole').value;
+
+            try {
+                const response = await fetch(`${API_URL}/admin/update-key-role`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        password: adminPassword,
+                        username: username,
+                        licenseKey: licenseKey,
+                        newRole: newRole
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    alert('✅ Rôle de la clé modifié avec succès !');
+                    closeEditKeyRoleModal();
+                    loadKeysWithUsers();
+                } else {
+                    alert('❌ Erreur: ' + data.message);
+                }
+            } catch (error) {
+                alert('❌ Erreur de connexion');
+            }
+        }
+
+        // Modale pour changer le rôle d'un UTILISATEUR
         let editingUser = null;
         function openEditRoleModal(username, currentRole, currentLicenseKey) {
             editingUser = { username, currentRole, currentLicenseKey };

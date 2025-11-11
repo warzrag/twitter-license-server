@@ -26,12 +26,27 @@ async function initDatabase() {
                 license_key VARCHAR(50) PRIMARY KEY,
                 owner VARCHAR(255) NOT NULL,
                 active BOOLEAN DEFAULT true,
+                role VARCHAR(20) DEFAULT 'va',
                 created_at TIMESTAMP DEFAULT NOW(),
                 last_used TIMESTAMP,
                 last_heartbeat TIMESTAMP,
-                last_ip VARCHAR(45)
+                last_ip VARCHAR(45),
+                CONSTRAINT key_role_check CHECK (role IN ('admin', 'va'))
             )
         `);
+
+        // Ajouter la colonne role si elle n'existe pas
+        try {
+            await client.query(`
+                ALTER TABLE license_keys
+                ADD COLUMN role VARCHAR(20) DEFAULT 'va'
+            `);
+            console.log('✅ Colonne role ajoutée aux clés');
+        } catch (error) {
+            if (error.code !== '42701') {
+                console.error('⚠️ Erreur ajout colonne role:', error.message);
+            }
+        }
 
         // Table des logs
         await client.query(`
@@ -714,7 +729,7 @@ app.post('/api/admin/keys-with-users', checkAdminAuth, async (req, res) => {
     try {
         // Récupérer toutes les clés
         const keysResult = await pool.query(
-            'SELECT license_key, owner, active, created_at, last_used FROM license_keys ORDER BY created_at DESC'
+            'SELECT license_key, owner, active, role, created_at, last_used FROM license_keys ORDER BY created_at DESC'
         );
 
         // Pour chaque clé, récupérer les utilisateurs VA associés
@@ -734,6 +749,7 @@ app.post('/api/admin/keys-with-users', checkAdminAuth, async (req, res) => {
                 licenseKey: key.license_key,
                 owner: key.owner,
                 active: key.active,
+                role: key.role || 'va',
                 createdAt: key.created_at,
                 lastUsed: key.last_used,
                 commentsCount: parseInt(commentsResult.rows[0].count),
@@ -754,6 +770,47 @@ app.post('/api/admin/keys-with-users', checkAdminAuth, async (req, res) => {
         });
     } catch (error) {
         console.error('Erreur keys-with-users:', error);
+        res.status(500).json({ success: false, message: 'Erreur serveur' });
+    }
+});
+
+// Modifier le rôle d'une clé
+app.post('/api/admin/update-key-role', checkAdminAuth, async (req, res) => {
+    const { licenseKey, newRole } = req.body;
+
+    if (!licenseKey || !newRole) {
+        return res.status(400).json({
+            success: false,
+            message: 'Clé de licence et rôle requis'
+        });
+    }
+
+    if (!['admin', 'va'].includes(newRole)) {
+        return res.status(400).json({
+            success: false,
+            message: 'Rôle invalide (admin ou va)'
+        });
+    }
+
+    try {
+        const result = await pool.query(
+            'UPDATE license_keys SET role = $1 WHERE license_key = $2 RETURNING *',
+            [newRole, licenseKey]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Clé non trouvée'
+            });
+        }
+
+        res.json({
+            success: true,
+            message: 'Rôle de la clé mis à jour'
+        });
+    } catch (error) {
+        console.error('Erreur update-key-role:', error);
         res.status(500).json({ success: false, message: 'Erreur serveur' });
     }
 });
