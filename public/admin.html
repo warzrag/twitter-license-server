@@ -318,15 +318,25 @@
     <!-- Admin Panel -->
     <div id="adminPanel" class="hidden container">
         <div class="header">
-            <h1>🔐 Twitter Commenter - Panneau Admin</h1>
-            <p class="subtitle">Gérez les licences et l'accès à l'extension</p>
+            <h1 id="headerTitle">🔐 Twitter Commenter - Panneau Admin</h1>
+            <p class="subtitle" id="headerSubtitle">Gérez les licences et l'accès à l'extension</p>
         </div>
 
-        <div class="stats" id="stats"></div>
+        <!-- Vue VA uniquement -->
+        <div id="vaView" class="hidden">
+            <div class="panel">
+                <h2>📊 Mes statistiques</h2>
+                <div id="vaStats"></div>
+            </div>
+        </div>
 
-        <!-- Statistiques publiques -->
-        <div class="panel">
-            <h2>📊 Statistiques des commentaires</h2>
+        <!-- Vue Admin/Creator -->
+        <div id="adminView">
+            <div class="stats" id="stats"></div>
+
+            <!-- Statistiques publiques -->
+            <div class="panel">
+                <h2>📊 Statistiques des commentaires</h2>
             <div style="text-align: center; padding: 20px; background: linear-gradient(135deg, #238636 0%, #2ea043 100%); border-radius: 10px; margin-bottom: 20px;">
                 <div style="font-size: 48px; font-weight: bold; color: white;" id="totalCommentsCount">0</div>
                 <div style="color: rgba(255,255,255,0.9); margin-top: 5px;">Total de commentaires postés</div>
@@ -338,34 +348,43 @@
             <div id="publicStats" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;"></div>
         </div>
 
-        <!-- Create Key -->
-        <div class="panel">
-            <h2>➕ Créer une nouvelle clé</h2>
-            <input type="text" id="newOwner" placeholder="Nom du propriétaire (ex: Jean Dupont)">
-            <button onclick="createKey()">Créer la clé</button>
-        </div>
-
-        <!-- Keys List -->
-        <div class="panel">
-            <h2>🔑 Clés actives</h2>
-            <div id="keysList"></div>
-        </div>
-
-        <!-- Guests Management (Admin only) -->
-        <div class="panel" id="guestsPanel" style="display: none;">
-            <h2>👥 Gestion des invités</h2>
-            <div style="margin-bottom: 20px;">
-                <input type="text" id="newGuestUsername" placeholder="Nom d'utilisateur">
-                <input type="password" id="newGuestPassword" placeholder="Mot de passe">
-                <button onclick="createGuest()">Créer un invité</button>
+            <!-- Create Key -->
+            <div class="panel" id="createKeyPanel">
+                <h2>➕ Créer une nouvelle clé</h2>
+                <input type="text" id="newOwner" placeholder="Nom du propriétaire (ex: Jean Dupont)">
+                <button onclick="createKey()">Créer la clé</button>
             </div>
-            <div id="guestsList"></div>
-        </div>
 
-        <!-- Logs -->
-        <div class="panel">
-            <h2>📊 Logs d'activité (100 derniers)</h2>
-            <div id="logsList"></div>
+            <!-- Users Management (Admin/Creator only) -->
+            <div class="panel" id="usersPanel">
+                <h2>👥 Gestion des utilisateurs</h2>
+                <div style="margin-bottom: 20px;">
+                    <h3 style="color: #c9d1d9; margin-bottom: 10px;">Créer un utilisateur</h3>
+                    <input type="text" id="newUsername" placeholder="Nom d'utilisateur">
+                    <input type="password" id="newUserPassword" placeholder="Mot de passe">
+                    <select id="userRole" style="width: 100%; padding: 14px 16px; margin: 12px 0; border: 1px solid #30363d; border-radius: 10px; font-size: 15px; background: #0d1117; color: #c9d1d9;">
+                        <option value="admin">Admin</option>
+                        <option value="va">VA</option>
+                    </select>
+                    <select id="userLicenseKey" style="width: 100%; padding: 14px 16px; margin: 12px 0; border: 1px solid #30363d; border-radius: 10px; font-size: 15px; background: #0d1117; color: #c9d1d9; display: none;">
+                        <option value="">Sélectionner une clé de licence</option>
+                    </select>
+                    <button onclick="createUser()">Créer l'utilisateur</button>
+                </div>
+                <div id="usersList"></div>
+            </div>
+
+            <!-- Keys List -->
+            <div class="panel">
+                <h2>🔑 Clés actives</h2>
+                <div id="keysList"></div>
+            </div>
+
+            <!-- Logs -->
+            <div class="panel">
+                <h2>📊 Logs d'activité (100 derniers)</h2>
+                <div id="logsList"></div>
+            </div>
         </div>
     </div>
 
@@ -374,6 +393,7 @@
         let adminPassword = '';
         let userRole = '';
         let username = '';
+        let userLicenseKey = '';
 
         async function login() {
             const usernameInput = document.getElementById('username').value;
@@ -392,6 +412,7 @@
                     adminPassword = password;
                     userRole = data.role;
                     username = data.username;
+                    userLicenseKey = data.licenseKey || '';
 
                     document.getElementById('loginBox').classList.add('hidden');
                     document.getElementById('adminPanel').classList.remove('hidden');
@@ -408,23 +429,41 @@
         }
 
         function setupPermissions() {
-            // Si guest, cacher les sections admin
-            if (userRole === 'guest') {
-                // Cacher la section création de clé
-                document.querySelector('.panel:has(#newOwner)').style.display = 'none';
-                // Cacher la section invités
-                document.getElementById('guestsPanel').style.display = 'none';
-                // Désactiver tous les boutons d'action
+            if (userRole === 'va') {
+                // VA : afficher uniquement leurs stats
+                document.getElementById('headerTitle').textContent = '📊 Mes statistiques';
+                document.getElementById('headerSubtitle').textContent = 'Consultez vos performances';
+                document.getElementById('vaView').classList.remove('hidden');
+                document.getElementById('adminView').style.display = 'none';
+            } else if (userRole === 'creator') {
+                // Créateur : tout afficher
+                document.getElementById('headerTitle').textContent = '👑 Panneau Créateur';
+                document.getElementById('headerSubtitle').textContent = 'Accès complet au système';
+            } else if (userRole === 'admin') {
+                // Admin : tout afficher sauf compte créateur
+                document.getElementById('headerTitle').textContent = '🔐 Panneau Admin';
+                document.getElementById('headerSubtitle').textContent = 'Gérez les licences et utilisateurs';
+            } else if (userRole === 'guest') {
+                // Guest (compatibilité) : lecture seule
+                document.getElementById('createKeyPanel').style.display = 'none';
+                document.getElementById('usersPanel').style.display = 'none';
                 setTimeout(() => {
                     document.querySelectorAll('.key-actions button').forEach(btn => {
                         btn.style.display = 'none';
                     });
                 }, 1000);
-            } else {
-                // Admin : tout afficher
-                document.getElementById('guestsPanel').style.display = 'block';
             }
         }
+
+        // Afficher/masquer le champ licence selon le rôle sélectionné
+        document.getElementById('userRole')?.addEventListener('change', function() {
+            const licenseKeySelect = document.getElementById('userLicenseKey');
+            if (this.value === 'va') {
+                licenseKeySelect.style.display = 'block';
+            } else {
+                licenseKeySelect.style.display = 'none';
+            }
+        });
 
         async function createKey() {
             const owner = document.getElementById('newOwner').value;
@@ -531,7 +570,57 @@
             }
         }
 
+        async function createUser() {
+            const usernameInput = document.getElementById('newUsername').value;
+            const userPassword = document.getElementById('newUserPassword').value;
+            const role = document.getElementById('userRole').value;
+            const licenseKey = role === 'va' ? document.getElementById('userLicenseKey').value : null;
+
+            if (!usernameInput || !userPassword) {
+                alert('Remplissez tous les champs');
+                return;
+            }
+
+            if (role === 'va' && !licenseKey) {
+                alert('Sélectionnez une clé de licence pour le VA');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/admin/create-user`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        password: adminPassword,
+                        username: usernameInput,
+                        userPassword: userPassword,
+                        role: role,
+                        licenseKey: licenseKey
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    alert(`✅ ${role === 'admin' ? 'Admin' : 'VA'} créé avec succès !\n\nUsername: ${usernameInput}\nPassword: ${userPassword}`);
+                    document.getElementById('newUsername').value = '';
+                    document.getElementById('newUserPassword').value = '';
+                    loadUsers();
+                } else {
+                    alert(data.message || 'Erreur lors de la création');
+                }
+            } catch (error) {
+                alert('Erreur de connexion');
+            }
+        }
+
         async function loadData() {
+            if (userRole === 'va') {
+                // VA : charger uniquement leurs stats
+                loadVAStats();
+                return;
+            }
+
             // Load keys
             try {
                 const response = await fetch(`${API_URL}/admin/keys`, {
@@ -545,6 +634,7 @@
                 if (data.success) {
                     displayKeys(data.keys);
                     displayStats(data.keys);
+                    populateLicenseKeyDropdown(data.keys);
                 }
             } catch (error) {
                 console.error(error);
@@ -579,9 +669,131 @@
                 console.error(error);
             }
 
-            // Load guests (admin only)
-            if (userRole === 'admin') {
-                loadGuests();
+            // Load users (admin/creator only)
+            if (userRole === 'admin' || userRole === 'creator') {
+                loadUsers();
+            }
+        }
+
+        async function loadVAStats() {
+            try {
+                const response = await fetch(`${API_URL}/va/my-stats`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ licenseKey: userLicenseKey })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    displayVAStats(data.stats);
+                }
+            } catch (error) {
+                console.error('Erreur load VA stats:', error);
+            }
+        }
+
+        function displayVAStats(stats) {
+            const html = `
+                <div style="background: #0d1117; padding: 30px; border-radius: 12px; border: 1px solid #30363d;">
+                    <div style="text-align: center; margin-bottom: 30px;">
+                        <div style="font-size: 72px; font-weight: bold; background: linear-gradient(135deg, #58a6ff, #1f6feb); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">${stats.commentsCount}</div>
+                        <div style="font-size: 20px; color: #8b949e; margin-top: 10px;">commentaires postés</div>
+                    </div>
+
+                    <div class="key-code" style="font-size: 16px; text-align: center; margin: 20px 0;">${stats.licenseKey}</div>
+
+                    <div style="color: #8b949e; text-align: center; margin-top: 20px;">
+                        <div><strong style="color: #c9d1d9;">Propriétaire:</strong> ${stats.owner}</div>
+                        <div style="margin-top: 10px;"><strong style="color: #c9d1d9;">Statut:</strong> <span style="color: ${stats.active ? '#2ea043' : '#f85149'}; font-weight: bold;">${stats.active ? '✅ Active' : '❌ Inactive'}</span></div>
+                        <div style="margin-top: 10px;"><strong style="color: #c9d1d9;">Créée le:</strong> ${new Date(stats.createdAt).toLocaleString('fr-FR')}</div>
+                        ${stats.lastUsed ? `<div style="margin-top: 10px;"><strong style="color: #c9d1d9;">Dernière utilisation:</strong> ${new Date(stats.lastUsed).toLocaleString('fr-FR')}</div>` : ''}
+                    </div>
+                </div>
+            `;
+            document.getElementById('vaStats').innerHTML = html;
+        }
+
+        function populateLicenseKeyDropdown(keys) {
+            const select = document.getElementById('userLicenseKey');
+            const options = Object.entries(keys).map(([key, data]) =>
+                `<option value="${key}">${data.owner} - ${key}</option>`
+            ).join('');
+            select.innerHTML = '<option value="">Sélectionner une clé de licence</option>' + options;
+        }
+
+        async function loadUsers() {
+            try {
+                const response = await fetch(`${API_URL}/admin/users`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: adminPassword })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    displayUsers(data.users, data.guests);
+                }
+            } catch (error) {
+                console.error('Erreur load users:', error);
+            }
+        }
+
+        function displayUsers(users, guests) {
+            const usersHTML = users.map(user => {
+                const roleEmoji = user.role === 'admin' ? '🔐' : '📊';
+                const roleLabel = user.role === 'admin' ? 'Admin' : 'VA';
+                return `
+                    <div class="key-card">
+                        <div style="font-size: 18px; font-weight: bold; color: #c9d1d9 !important; margin-bottom: 10px;">${roleEmoji} ${user.username} <span style="background: linear-gradient(135deg, #1f6feb, #58a6ff); color: white; padding: 4px 10px; border-radius: 6px; font-size: 12px; margin-left: 10px;">${roleLabel}</span></div>
+                        ${user.license_key ? `<div class="key-code" style="font-size: 14px;">${user.license_key}</div>` : ''}
+                        <div class="key-info">
+                            Créé: ${new Date(user.created_at).toLocaleString('fr-FR')}<br>
+                            Dernière connexion: ${user.last_login ? new Date(user.last_login).toLocaleString('fr-FR') : 'Jamais'}
+                        </div>
+                        <div class="key-actions">
+                            <button class="btn-danger" onclick="deleteUser('${user.username}')">🗑️ Supprimer</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            const guestsHTML = guests.map(guest => `
+                <div class="key-card">
+                    <div style="font-size: 18px; font-weight: bold; color: #c9d1d9 !important; margin-bottom: 10px;">👤 ${guest.username} <span style="background: #8b949e; color: white; padding: 4px 10px; border-radius: 6px; font-size: 12px; margin-left: 10px;">Guest (ancien)</span></div>
+                    <div class="key-info">
+                        Créé: ${new Date(guest.created_at).toLocaleString('fr-FR')}<br>
+                        Dernière connexion: ${guest.last_login ? new Date(guest.last_login).toLocaleString('fr-FR') : 'Jamais'}
+                    </div>
+                    <div class="key-actions">
+                        <button class="btn-danger" onclick="deleteGuest('${guest.username}')">🗑️ Supprimer</button>
+                    </div>
+                </div>
+            `).join('');
+
+            document.getElementById('usersList').innerHTML = (usersHTML + guestsHTML) || '<p style="color: #8b949e; text-align: center;">Aucun utilisateur</p>';
+        }
+
+        async function deleteUser(username) {
+            if (!confirm(`Supprimer l'utilisateur ${username} ?`)) return;
+
+            try {
+                const response = await fetch(`${API_URL}/admin/delete-user`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: adminPassword, username })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    loadUsers();
+                } else {
+                    alert(data.message || 'Erreur lors de la suppression');
+                }
+            } catch (error) {
+                alert('Erreur de connexion');
             }
         }
 
@@ -716,89 +928,6 @@
             document.getElementById('publicStats').innerHTML = html || (stats.length <= 3 ? '' : '<p style="color: #8b949e; text-align: center;">Aucune autre statistique</p>');
         }
 
-        // === GESTION DES INVITÉS ===
-
-        async function createGuest() {
-            const usernameInput = document.getElementById('newGuestUsername').value;
-            const guestPassword = document.getElementById('newGuestPassword').value;
-
-            if (!usernameInput || !guestPassword) {
-                alert('Remplissez tous les champs');
-                return;
-            }
-
-            try {
-                const payload = {
-                    password: adminPassword,  // Pour l'auth admin
-                    username: usernameInput,  // Username du guest
-                    guestPassword: guestPassword  // Password du guest
-                };
-                // Le serveur attend "password" pour le guest, donc on le renomme
-                payload.password = guestPassword;
-                payload.adminPassword = adminPassword;
-
-                const response = await fetch(`${API_URL}/admin/create-guest`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        password: adminPassword,  // Pour checkAdminAuth
-                        username: usernameInput,
-                        guestPassword: guestPassword
-                    })
-                });
-
-                const data = await response.json();
-
-                if (data.success) {
-                    alert(`Invité créé avec succès !\n\nUsername: ${usernameInput}\nPassword: ${guestPassword}\n\nDonnez ces identifiants à l'invité.`);
-                    document.getElementById('newGuestUsername').value = '';
-                    document.getElementById('newGuestPassword').value = '';
-                    loadGuests();
-                } else {
-                    alert(data.message || 'Erreur lors de la création');
-                }
-            } catch (error) {
-                alert('Erreur de connexion');
-            }
-        }
-
-        async function loadGuests() {
-            if (userRole !== 'admin') return;
-
-            try {
-                const response = await fetch(`${API_URL}/admin/guests`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ password: adminPassword })
-                });
-
-                const data = await response.json();
-
-                if (data.success) {
-                    displayGuests(data.guests);
-                }
-            } catch (error) {
-                console.error('Erreur load guests:', error);
-            }
-        }
-
-        function displayGuests(guests) {
-            const html = guests.map(guest => `
-                <div class="key-card">
-                    <div style="font-size: 18px; font-weight: bold; color: #c9d1d9 !important; margin-bottom: 10px;">👤 ${guest.username}</div>
-                    <div class="key-info">
-                        Créé: ${new Date(guest.created_at).toLocaleString('fr-FR')}<br>
-                        Dernière connexion: ${guest.last_login ? new Date(guest.last_login).toLocaleString('fr-FR') : 'Jamais'}
-                    </div>
-                    <div class="key-actions">
-                        <button class="btn-danger" onclick="deleteGuest('${guest.username}')">🗑️ Supprimer</button>
-                    </div>
-                </div>
-            `).join('');
-
-            document.getElementById('guestsList').innerHTML = html || '<p style="color: #8b949e; text-align: center;">Aucun invité</p>';
-        }
-
         async function deleteGuest(username) {
             if (!confirm(`Supprimer l'invité ${username} ?`)) return;
 
@@ -812,10 +941,12 @@
                 const data = await response.json();
 
                 if (data.success) {
-                    loadGuests();
+                    loadUsers();
+                } else {
+                    alert(data.message || 'Erreur lors de la suppression');
                 }
             } catch (error) {
-                alert('Erreur lors de la suppression');
+                alert('Erreur de connexion');
             }
         }
 
@@ -823,8 +954,8 @@
         setInterval(() => {
             if (adminPassword) {
                 loadData();
-                if (userRole === 'admin') {
-                    loadGuests();
+                if (userRole === 'admin' || userRole === 'creator') {
+                    loadUsers();
                 }
             }
         }, 10000);

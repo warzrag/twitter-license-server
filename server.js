@@ -71,7 +71,22 @@ async function initDatabase() {
             )
         `);
 
-        // Table des utilisateurs invités
+        // Table des utilisateurs avec rôles
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                username VARCHAR(100) UNIQUE NOT NULL,
+                password VARCHAR(255) NOT NULL,
+                role VARCHAR(20) NOT NULL DEFAULT 'va',
+                license_key VARCHAR(50),
+                created_at TIMESTAMP DEFAULT NOW(),
+                created_by VARCHAR(50) DEFAULT 'admin',
+                last_login TIMESTAMP,
+                CONSTRAINT role_check CHECK (role IN ('creator', 'admin', 'va'))
+            )
+        `);
+
+        // Table des utilisateurs invités (garder pour compatibilité)
         await client.query(`
             CREATE TABLE IF NOT EXISTS guest_users (
                 id SERIAL PRIMARY KEY,
@@ -82,6 +97,18 @@ async function initDatabase() {
                 last_login TIMESTAMP
             )
         `);
+
+        // Créer le compte CRÉATEUR s'il n'existe pas
+        try {
+            await client.query(`
+                INSERT INTO users (username, password, role)
+                VALUES ('creator', 'creator123', 'creator')
+                ON CONFLICT (username) DO NOTHING
+            `);
+            console.log('✅ Compte créateur initialisé (username: creator, password: creator123)');
+        } catch (error) {
+            console.log('⚠️ Compte créateur déjà existant');
+        }
 
         console.log('✅ Base de données initialisée');
     } catch (error) {
@@ -499,28 +526,41 @@ app.get('/api/stats', async (req, res) => {
 
 // ===== ROUTES INVITÉS =====
 
-// Login (admin ou invité)
+// Login (creator, admin ou VA)
 app.post('/api/login', async (req, res) => {
     const { username, password } = req.body;
 
-    // Vérifier si c'est l'admin
-    if (username === 'admin' && password === ADMIN_PASSWORD) {
-        return res.json({
-            success: true,
-            role: 'admin',
-            username: 'admin'
-        });
-    }
-
-    // Vérifier si c'est un invité
     try {
+        // Vérifier dans la table users (creator, admin, va)
         const result = await pool.query(
-            'SELECT * FROM guest_users WHERE username = $1 AND password = $2',
+            'SELECT * FROM users WHERE username = $1 AND password = $2',
             [username, password]
         );
 
         if (result.rows.length > 0) {
+            const user = result.rows[0];
+
             // Mettre à jour last_login
+            await pool.query(
+                'UPDATE users SET last_login = NOW() WHERE username = $1',
+                [username]
+            );
+
+            return res.json({
+                success: true,
+                role: user.role,
+                username: user.username,
+                licenseKey: user.license_key
+            });
+        }
+
+        // Vérifier dans guest_users (compatibilité ancienne version)
+        const guestResult = await pool.query(
+            'SELECT * FROM guest_users WHERE username = $1 AND password = $2',
+            [username, password]
+        );
+
+        if (guestResult.rows.length > 0) {
             await pool.query(
                 'UPDATE guest_users SET last_login = NOW() WHERE username = $1',
                 [username]
@@ -543,7 +583,54 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
-// Créer un invité (admin uniquement)
+// Créer un utilisateur (admin/creator uniquement)
+app.post('/api/admin/create-user', checkAdminAuth, async (req, res) => {
+    const { username, userPassword, role, licenseKey } = req.body;
+
+    if (!username || !userPassword || !role) {
+        return res.status(400).json({
+            success: false,
+            message: 'Username, password et rôle requis'
+        });
+    }
+
+    if (!['admin', 'va'].includes(role)) {
+        return res.status(400).json({
+            success: false,
+            message: 'Rôle invalide (admin ou va)'
+        });
+    }
+
+    if (role === 'va' && !licenseKey) {
+        return res.status(400).json({
+            success: false,
+            message: 'Clé de licence requise pour les VAs'
+        });
+    }
+
+    try {
+        await pool.query(
+            'INSERT INTO users (username, password, role, license_key) VALUES ($1, $2, $3, $4)',
+            [username, userPassword, role, licenseKey || null]
+        );
+
+        res.json({
+            success: true,
+            message: `${role === 'admin' ? 'Admin' : 'VA'} créé avec succès`
+        });
+    } catch (error) {
+        if (error.code === '23505') {
+            return res.status(400).json({
+                success: false,
+                message: 'Ce nom d\'utilisateur existe déjà'
+            });
+        }
+        console.error('Erreur create-user:', error);
+        res.status(500).json({ success: false, message: 'Erreur serveur' });
+    }
+});
+
+// Créer un invité (admin uniquement - compatibilité)
 app.post('/api/admin/create-guest', checkAdminAuth, async (req, res) => {
     const { username, guestPassword } = req.body;
 
@@ -565,7 +652,7 @@ app.post('/api/admin/create-guest', checkAdminAuth, async (req, res) => {
             message: 'Invité créé avec succès'
         });
     } catch (error) {
-        if (error.code === '23505') { // Duplicate key
+        if (error.code === '23505') {
             return res.status(400).json({
                 success: false,
                 message: 'Ce nom d\'utilisateur existe déjà'
@@ -576,7 +663,30 @@ app.post('/api/admin/create-guest', checkAdminAuth, async (req, res) => {
     }
 });
 
-// Liste des invités (admin uniquement)
+// Liste des utilisateurs (admin/creator uniquement)
+app.post('/api/admin/users', checkAdminAuth, async (req, res) => {
+    try {
+        const usersResult = await pool.query(
+            'SELECT id, username, role, license_key, created_at, last_login FROM users WHERE role != $1 ORDER BY created_at DESC',
+            ['creator']
+        );
+
+        const guestsResult = await pool.query(
+            'SELECT id, username, created_at, last_login FROM guest_users ORDER BY created_at DESC'
+        );
+
+        res.json({
+            success: true,
+            users: usersResult.rows,
+            guests: guestsResult.rows
+        });
+    } catch (error) {
+        console.error('Erreur users:', error);
+        res.status(500).json({ success: false, message: 'Erreur serveur' });
+    }
+});
+
+// Liste des invités (admin uniquement - compatibilité)
 app.post('/api/admin/guests', checkAdminAuth, async (req, res) => {
     try {
         const result = await pool.query(
@@ -593,7 +703,42 @@ app.post('/api/admin/guests', checkAdminAuth, async (req, res) => {
     }
 });
 
-// Supprimer un invité (admin uniquement)
+// Supprimer un utilisateur (admin/creator uniquement, sauf le créateur)
+app.post('/api/admin/delete-user', checkAdminAuth, async (req, res) => {
+    const { username } = req.body;
+
+    // Empêcher la suppression du créateur
+    if (username === 'creator') {
+        return res.status(403).json({
+            success: false,
+            message: 'Le compte créateur ne peut pas être supprimé'
+        });
+    }
+
+    try {
+        const result = await pool.query(
+            'DELETE FROM users WHERE username = $1 RETURNING *',
+            [username]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Utilisateur non trouvé'
+            });
+        }
+
+        res.json({
+            success: true,
+            message: 'Utilisateur supprimé'
+        });
+    } catch (error) {
+        console.error('Erreur delete-user:', error);
+        res.status(500).json({ success: false, message: 'Erreur serveur' });
+    }
+});
+
+// Supprimer un invité (admin uniquement - compatibilité)
 app.post('/api/admin/delete-guest', checkAdminAuth, async (req, res) => {
     const { username } = req.body;
 
@@ -651,6 +796,56 @@ app.post('/api/admin/reset-comments', checkAdminAuth, async (req, res) => {
     }
 });
 
+// Statistiques pour VAs (accès à leurs propres stats uniquement)
+app.post('/api/va/my-stats', async (req, res) => {
+    const { licenseKey } = req.body;
+
+    if (!licenseKey) {
+        return res.status(400).json({
+            success: false,
+            message: 'Clé de licence manquante'
+        });
+    }
+
+    try {
+        // Vérifier que la clé existe
+        const keyResult = await pool.query(
+            'SELECT * FROM license_keys WHERE license_key = $1',
+            [licenseKey]
+        );
+
+        if (keyResult.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Clé non trouvée'
+            });
+        }
+
+        const keyData = keyResult.rows[0];
+
+        // Compter les commentaires
+        const commentsResult = await pool.query(
+            'SELECT COUNT(*) as count FROM access_logs WHERE license_key = $1 AND action = $2',
+            [licenseKey, 'comment_posted']
+        );
+
+        res.json({
+            success: true,
+            stats: {
+                owner: keyData.owner,
+                licenseKey: licenseKey,
+                active: keyData.active,
+                commentsCount: parseInt(commentsResult.rows[0].count),
+                createdAt: keyData.created_at,
+                lastUsed: keyData.last_used
+            }
+        });
+    } catch (error) {
+        console.error('Erreur va/my-stats:', error);
+        res.status(500).json({ success: false, message: 'Erreur serveur' });
+    }
+});
+
 // Démarrer le serveur
 async function startServer() {
     await initDatabase();
@@ -659,6 +854,7 @@ async function startServer() {
         console.log(`🔐 Serveur de licences démarré sur http://localhost:${PORT}`);
         console.log(`📊 Panneau admin: http://localhost:${PORT}/admin.html`);
         console.log(`🔑 Mot de passe admin: ${ADMIN_PASSWORD}`);
+        console.log(`👤 Compte créateur: username=creator, password=creator123`);
     });
 }
 
