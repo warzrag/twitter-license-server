@@ -506,6 +506,31 @@
             }
         }
 
+        async function resetComments(licenseKey) {
+            if (!confirm('Êtes-vous sûr de vouloir remettre à zéro les commentaires de cette clé ?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/admin/reset-comments`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: adminPassword, licenseKey })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    alert(`✅ ${data.deletedCount} commentaire(s) supprimé(s)`);
+                    loadData();
+                } else {
+                    alert('Erreur: ' + data.message);
+                }
+            } catch (error) {
+                alert('Erreur de connexion');
+            }
+        }
+
         async function loadData() {
             // Load keys
             try {
@@ -595,6 +620,7 @@
                         <button class="${data.active ? 'btn-danger' : 'btn-success'}" onclick="toggleKey('${key}')">
                             ${data.active ? '❌ Désactiver' : '✅ Activer'}
                         </button>
+                        <button style="background: linear-gradient(135deg, #f39c12, #f1c40f) !important; box-shadow: 0 4px 12px rgba(243, 156, 18, 0.3); border: none;" onclick="resetComments('${key}')">🔄 Reset Commentaires</button>
                         <button class="btn-danger" onclick="deleteKey('${key}')">🗑️ Supprimer</button>
                     </div>
                 </div>

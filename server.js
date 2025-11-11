@@ -620,6 +620,37 @@ app.post('/api/admin/delete-guest', checkAdminAuth, async (req, res) => {
     }
 });
 
+// Remettre à zéro les commentaires d'une licence
+app.post('/api/admin/reset-comments', checkAdminAuth, async (req, res) => {
+    const { licenseKey } = req.body;
+
+    if (!licenseKey) {
+        return res.status(400).json({
+            success: false,
+            message: 'Clé de licence requise'
+        });
+    }
+
+    try {
+        // Supprimer tous les logs de commentaires pour cette licence
+        const result = await pool.query(
+            'DELETE FROM access_logs WHERE license_key = $1 AND action = $2 RETURNING *',
+            [licenseKey, 'comment']
+        );
+
+        console.log(`✅ ${result.rowCount} commentaires supprimés pour ${licenseKey}`);
+
+        res.json({
+            success: true,
+            message: `${result.rowCount} commentaire(s) supprimé(s)`,
+            deletedCount: result.rowCount
+        });
+    } catch (error) {
+        console.error('Erreur reset-comments:', error);
+        res.status(500).json({ success: false, message: 'Erreur serveur' });
+    }
+});
+
 // Démarrer le serveur
 async function startServer() {
     await initDatabase();
