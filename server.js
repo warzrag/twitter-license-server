@@ -686,6 +686,89 @@ app.post('/api/admin/users', checkAdminAuth, async (req, res) => {
     }
 });
 
+// Vue complète : toutes les clés avec utilisateurs associés
+app.post('/api/admin/keys-with-users', checkAdminAuth, async (req, res) => {
+    try {
+        // Récupérer toutes les clés
+        const keysResult = await pool.query(
+            'SELECT license_key, owner, active, created_at, last_used FROM license_keys ORDER BY created_at DESC'
+        );
+
+        // Pour chaque clé, récupérer les utilisateurs VA associés
+        const keysWithUsers = await Promise.all(keysResult.rows.map(async (key) => {
+            const usersResult = await pool.query(
+                'SELECT username, role, created_at, last_login FROM users WHERE license_key = $1',
+                [key.license_key]
+            );
+
+            // Compter les commentaires
+            const commentsResult = await pool.query(
+                'SELECT COUNT(*) as count FROM access_logs WHERE license_key = $1 AND action = $2',
+                [key.license_key, 'comment_posted']
+            );
+
+            return {
+                licenseKey: key.license_key,
+                owner: key.owner,
+                active: key.active,
+                createdAt: key.created_at,
+                lastUsed: key.last_used,
+                commentsCount: parseInt(commentsResult.rows[0].count),
+                users: usersResult.rows
+            };
+        }));
+
+        res.json({
+            success: true,
+            keysWithUsers: keysWithUsers
+        });
+    } catch (error) {
+        console.error('Erreur keys-with-users:', error);
+        res.status(500).json({ success: false, message: 'Erreur serveur' });
+    }
+});
+
+// Modifier le rôle d'un utilisateur
+app.post('/api/admin/update-user-role', checkAdminAuth, async (req, res) => {
+    const { username, newRole, newLicenseKey } = req.body;
+
+    if (username === 'creator') {
+        return res.status(403).json({
+            success: false,
+            message: 'Le rôle du créateur ne peut pas être modifié'
+        });
+    }
+
+    if (!['admin', 'va'].includes(newRole)) {
+        return res.status(400).json({
+            success: false,
+            message: 'Rôle invalide'
+        });
+    }
+
+    if (newRole === 'va' && !newLicenseKey) {
+        return res.status(400).json({
+            success: false,
+            message: 'Clé de licence requise pour les VAs'
+        });
+    }
+
+    try {
+        await pool.query(
+            'UPDATE users SET role = $1, license_key = $2 WHERE username = $3',
+            [newRole, newRole === 'va' ? newLicenseKey : null, username]
+        );
+
+        res.json({
+            success: true,
+            message: 'Rôle mis à jour'
+        });
+    } catch (error) {
+        console.error('Erreur update-user-role:', error);
+        res.status(500).json({ success: false, message: 'Erreur serveur' });
+    }
+});
+
 // Liste des invités (admin uniquement - compatibilité)
 app.post('/api/admin/guests', checkAdminAuth, async (req, res) => {
     try {

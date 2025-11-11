@@ -374,9 +374,15 @@
                 <div id="usersList"></div>
             </div>
 
+            <!-- Keys with Users View -->
+            <div class="panel">
+                <h2>🔑 Vue complète : Clés et Utilisateurs</h2>
+                <div id="keysWithUsersList"></div>
+            </div>
+
             <!-- Keys List -->
             <div class="panel">
-                <h2>🔑 Clés actives</h2>
+                <h2>🔑 Gestion des clés</h2>
                 <div id="keysList"></div>
             </div>
 
@@ -672,6 +678,173 @@
             // Load users (admin/creator only)
             if (userRole === 'admin' || userRole === 'creator') {
                 loadUsers();
+                loadKeysWithUsers();
+            }
+        }
+
+        async function loadKeysWithUsers() {
+            try {
+                const response = await fetch(`${API_URL}/admin/keys-with-users`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: adminPassword })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    displayKeysWithUsers(data.keysWithUsers);
+                }
+            } catch (error) {
+                console.error('Erreur load keys with users:', error);
+            }
+        }
+
+        function displayKeysWithUsers(keysWithUsers) {
+            const html = keysWithUsers.map(key => {
+                const usersHTML = key.users.length > 0
+                    ? key.users.map(user => `
+                        <div style="background: #161b22; padding: 12px; border-radius: 8px; margin-top: 8px; border-left: 3px solid ${user.role === 'admin' ? '#1f6feb' : '#58a6ff'};">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <span style="color: #c9d1d9; font-weight: bold;">${user.role === 'admin' ? '🔐' : '📊'} ${user.username}</span>
+                                    <span style="background: linear-gradient(135deg, #1f6feb, #58a6ff); color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-left: 8px;">${user.role === 'admin' ? 'Admin' : 'VA'}</span>
+                                </div>
+                                <button onclick="openEditRoleModal('${user.username}', '${user.role}', '${key.licenseKey}')" style="background: linear-gradient(135deg, #f39c12, #f1c40f); color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; box-shadow: 0 2px 8px rgba(243, 156, 18, 0.3);">✏️ Modifier rôle</button>
+                            </div>
+                            <div style="color: #8b949e; font-size: 12px; margin-top: 6px;">
+                                Dernière connexion: ${user.last_login ? new Date(user.last_login).toLocaleString('fr-FR') : 'Jamais'}
+                            </div>
+                        </div>
+                    `).join('')
+                    : '<div style="color: #8b949e; font-style: italic; margin-top: 8px;">Aucun utilisateur assigné</div>';
+
+                return `
+                    <div class="key-card ${key.active ? '' : 'inactive'}" style="margin-bottom: 20px;">
+                        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
+                            <div style="flex: 1;">
+                                <div style="font-size: 18px; font-weight: bold; color: #c9d1d9 !important; margin-bottom: 8px;">👤 ${key.owner}</div>
+                                <div class="key-code">${key.licenseKey}</div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="background: linear-gradient(135deg, #238636 0%, #2ea043 100%); color: white; padding: 8px 16px; border-radius: 8px; font-size: 24px; font-weight: bold; box-shadow: 0 4px 12px rgba(35, 134, 54, 0.3);">${key.commentsCount}</div>
+                                <div style="color: #8b949e; font-size: 12px; margin-top: 4px;">commentaires</div>
+                            </div>
+                        </div>
+
+                        <div style="border-top: 1px solid #30363d; padding-top: 12px; margin-top: 12px;">
+                            <div style="color: #8b949e; font-size: 13px; margin-bottom: 8px;">
+                                <strong style="color: #c9d1d9;">Statut:</strong> <span style="color: ${key.active ? '#2ea043' : '#f85149'}; font-weight: bold;">${key.active ? '✅ Active' : '❌ Inactive'}</span> |
+                                <strong style="color: #c9d1d9;">Créée:</strong> ${new Date(key.createdAt).toLocaleString('fr-FR')} |
+                                <strong style="color: #c9d1d9;">Dernière utilisation:</strong> ${key.lastUsed ? new Date(key.lastUsed).toLocaleString('fr-FR') : 'Jamais'}
+                            </div>
+
+                            <div style="margin-top: 12px;">
+                                <strong style="color: #c9d1d9; font-size: 14px;">👥 Utilisateurs assignés (${key.users.length}):</strong>
+                                ${usersHTML}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            document.getElementById('keysWithUsersList').innerHTML = html || '<p style="color: #8b949e; text-align: center;">Aucune clé créée</p>';
+        }
+
+        let editingUser = null;
+        function openEditRoleModal(username, currentRole, currentLicenseKey) {
+            editingUser = { username, currentRole, currentLicenseKey };
+
+            const modal = `
+                <div id="editRoleModal" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 1000;">
+                    <div style="background: #161b22; padding: 30px; border-radius: 16px; max-width: 500px; width: 90%; border: 1px solid #30363d; box-shadow: 0 20px 60px rgba(0,0,0,0.9);">
+                        <h2 style="color: #c9d1d9; margin-bottom: 20px;">✏️ Modifier le rôle de ${username}</h2>
+
+                        <label style="color: #8b949e; display: block; margin-bottom: 8px;">Nouveau rôle :</label>
+                        <select id="modalRole" style="width: 100%; padding: 14px 16px; margin-bottom: 16px; border: 1px solid #30363d; border-radius: 10px; font-size: 15px; background: #0d1117; color: #c9d1d9;">
+                            <option value="admin" ${currentRole === 'admin' ? 'selected' : ''}>🔐 Admin</option>
+                            <option value="va" ${currentRole === 'va' ? 'selected' : ''}>📊 VA</option>
+                        </select>
+
+                        <div id="modalLicenseKeyContainer" style="${currentRole === 'va' ? '' : 'display: none;'}">
+                            <label style="color: #8b949e; display: block; margin-bottom: 8px;">Clé de licence :</label>
+                            <select id="modalLicenseKey" style="width: 100%; padding: 14px 16px; margin-bottom: 16px; border: 1px solid #30363d; border-radius: 10px; font-size: 15px; background: #0d1117; color: #c9d1d9;">
+                                <option value="">Chargement...</option>
+                            </select>
+                        </div>
+
+                        <div style="display: flex; gap: 10px; margin-top: 20px;">
+                            <button onclick="saveRoleChanges()" style="flex: 1; background: linear-gradient(135deg, #1f6feb, #58a6ff); color: white; border: none; padding: 14px; border-radius: 10px; cursor: pointer; font-weight: 600; box-shadow: 0 4px 12px rgba(31, 111, 235, 0.3);">✅ Enregistrer</button>
+                            <button onclick="closeEditRoleModal()" style="flex: 1; background: linear-gradient(135deg, #da3633, #f85149); color: white; border: none; padding: 14px; border-radius: 10px; cursor: pointer; font-weight: 600; box-shadow: 0 4px 12px rgba(218, 54, 51, 0.3);">❌ Annuler</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.body.insertAdjacentHTML('beforeend', modal);
+
+            // Gérer l'affichage du sélecteur de licence
+            document.getElementById('modalRole').addEventListener('change', function() {
+                const container = document.getElementById('modalLicenseKeyContainer');
+                container.style.display = this.value === 'va' ? 'block' : 'none';
+            });
+
+            // Charger les clés de licence pour le sélecteur
+            fetch(`${API_URL}/admin/keys`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password: adminPassword })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    const options = Object.entries(data.keys).map(([key, keyData]) =>
+                        `<option value="${key}" ${key === currentLicenseKey ? 'selected' : ''}>${keyData.owner} - ${key}</option>`
+                    ).join('');
+                    document.getElementById('modalLicenseKey').innerHTML = '<option value="">Sélectionner une clé</option>' + options;
+                }
+            });
+        }
+
+        function closeEditRoleModal() {
+            const modal = document.getElementById('editRoleModal');
+            if (modal) modal.remove();
+            editingUser = null;
+        }
+
+        async function saveRoleChanges() {
+            const newRole = document.getElementById('modalRole').value;
+            const newLicenseKey = newRole === 'va' ? document.getElementById('modalLicenseKey').value : null;
+
+            if (newRole === 'va' && !newLicenseKey) {
+                alert('Veuillez sélectionner une clé de licence pour le VA');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/admin/update-user-role`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        password: adminPassword,
+                        username: editingUser.username,
+                        newRole: newRole,
+                        newLicenseKey: newLicenseKey
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    alert('✅ Rôle modifié avec succès !');
+                    closeEditRoleModal();
+                    loadKeysWithUsers();
+                    loadUsers();
+                } else {
+                    alert('❌ Erreur: ' + data.message);
+                }
+            } catch (error) {
+                alert('❌ Erreur de connexion');
             }
         }
 
@@ -956,6 +1129,7 @@
                 loadData();
                 if (userRole === 'admin' || userRole === 'creator') {
                     loadUsers();
+                    loadKeysWithUsers();
                 }
             }
         }, 10000);
