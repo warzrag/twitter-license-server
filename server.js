@@ -635,7 +635,7 @@ app.post('/api/admin/reset-comments', checkAdminAuth, async (req, res) => {
         // Supprimer tous les logs de commentaires pour cette licence
         const result = await pool.query(
             'DELETE FROM access_logs WHERE license_key = $1 AND action = $2 RETURNING *',
-            [licenseKey, 'comment']
+            [licenseKey, 'comment_posted']
         );
 
         console.log(`✅ ${result.rowCount} commentaires supprimés pour ${licenseKey}`);
