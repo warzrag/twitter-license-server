@@ -693,14 +693,77 @@
                 const data = await response.json();
 
                 if (data.success) {
-                    displayKeysWithUsers(data.keysWithUsers);
+                    displayKeysWithUsers(data.keysWithUsers, data.adminsWithoutKeys);
                 }
             } catch (error) {
                 console.error('Erreur load keys with users:', error);
             }
         }
 
-        function displayKeysWithUsers(keysWithUsers) {
+        function displayKeysWithUsers(keysWithUsers, adminsWithoutKeys) {
+            // Calculer les totaux
+            const totalKeys = keysWithUsers.length;
+            const activeKeys = keysWithUsers.filter(k => k.active).length;
+            const totalVAs = keysWithUsers.reduce((sum, key) => sum + key.users.filter(u => u.role === 'va').length, 0);
+            const totalAdmins = (adminsWithoutKeys ? adminsWithoutKeys.length : 0) + keysWithUsers.reduce((sum, key) => sum + key.users.filter(u => u.role === 'admin').length, 0);
+            const totalComments = keysWithUsers.reduce((sum, key) => sum + key.commentsCount, 0);
+
+            // Résumé en haut
+            const summaryHTML = `
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 30px;">
+                    <div style="background: linear-gradient(135deg, #1f6feb, #58a6ff); padding: 20px; border-radius: 12px; text-align: center; box-shadow: 0 4px 12px rgba(31, 111, 235, 0.3);">
+                        <div style="font-size: 36px; font-weight: bold; color: white;">${totalKeys}</div>
+                        <div style="color: rgba(255,255,255,0.9); font-size: 13px; margin-top: 5px;">Clés totales</div>
+                    </div>
+                    <div style="background: linear-gradient(135deg, #238636, #2ea043); padding: 20px; border-radius: 12px; text-align: center; box-shadow: 0 4px 12px rgba(35, 134, 54, 0.3);">
+                        <div style="font-size: 36px; font-weight: bold; color: white;">${activeKeys}</div>
+                        <div style="color: rgba(255,255,255,0.9); font-size: 13px; margin-top: 5px;">Clés actives</div>
+                    </div>
+                    <div style="background: linear-gradient(135deg, #8250df, #a371f7); padding: 20px; border-radius: 12px; text-align: center; box-shadow: 0 4px 12px rgba(130, 80, 223, 0.3);">
+                        <div style="font-size: 36px; font-weight: bold; color: white;">${totalVAs}</div>
+                        <div style="color: rgba(255,255,255,0.9); font-size: 13px; margin-top: 5px;">VAs assignés</div>
+                    </div>
+                    <div style="background: linear-gradient(135deg, #da3633, #f85149); padding: 20px; border-radius: 12px; text-align: center; box-shadow: 0 4px 12px rgba(218, 54, 51, 0.3);">
+                        <div style="font-size: 36px; font-weight: bold; color: white;">${totalAdmins}</div>
+                        <div style="color: rgba(255,255,255,0.9); font-size: 13px; margin-top: 5px;">Admins</div>
+                    </div>
+                    <div style="background: linear-gradient(135deg, #f39c12, #f1c40f); padding: 20px; border-radius: 12px; text-align: center; box-shadow: 0 4px 12px rgba(243, 156, 18, 0.3);">
+                        <div style="font-size: 36px; font-weight: bold; color: white;">${totalComments}</div>
+                        <div style="color: rgba(255,255,255,0.9); font-size: 13px; margin-top: 5px;">Commentaires</div>
+                    </div>
+                </div>
+            `;
+
+            // Section Admins sans clé
+            let adminsHTML = '';
+            if (adminsWithoutKeys && adminsWithoutKeys.length > 0) {
+                const adminsCards = adminsWithoutKeys.map(admin => `
+                    <div style="background: #161b22; padding: 12px; border-radius: 8px; margin-top: 8px; border-left: 3px solid #1f6feb;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <span style="color: #c9d1d9; font-weight: bold;">🔐 ${admin.username}</span>
+                                <span style="background: linear-gradient(135deg, #1f6feb, #58a6ff); color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-left: 8px;">Admin</span>
+                            </div>
+                            <button onclick="openEditRoleModal('${admin.username}', '${admin.role}', '')" style="background: linear-gradient(135deg, #f39c12, #f1c40f); color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; box-shadow: 0 2px 8px rgba(243, 156, 18, 0.3);">✏️ Modifier rôle</button>
+                        </div>
+                        <div style="color: #8b949e; font-size: 12px; margin-top: 6px;">
+                            Dernière connexion: ${admin.last_login ? new Date(admin.last_login).toLocaleString('fr-FR') : 'Jamais'}
+                        </div>
+                    </div>
+                `).join('');
+
+                adminsHTML = `
+                    <div class="key-card" style="margin-bottom: 30px; border-left-color: #1f6feb; background: linear-gradient(135deg, rgba(31, 111, 235, 0.05), rgba(88, 166, 255, 0.05));">
+                        <div style="font-size: 20px; font-weight: bold; color: #c9d1d9 !important; margin-bottom: 15px;">
+                            🔐 Administrateurs (${adminsWithoutKeys.length})
+                            <span style="font-size: 14px; font-weight: normal; color: #8b949e; margin-left: 10px;">Accès complet sans clé spécifique</span>
+                        </div>
+                        ${adminsCards}
+                    </div>
+                `;
+            }
+
+            // Section Clés avec utilisateurs
             const html = keysWithUsers.map(key => {
                 const usersHTML = key.users.length > 0
                     ? key.users.map(user => `
@@ -748,7 +811,7 @@
                 `;
             }).join('');
 
-            document.getElementById('keysWithUsersList').innerHTML = html || '<p style="color: #8b949e; text-align: center;">Aucune clé créée</p>';
+            document.getElementById('keysWithUsersList').innerHTML = summaryHTML + adminsHTML + html || '<p style="color: #8b949e; text-align: center;">Aucune clé créée</p>';
         }
 
         let editingUser = null;

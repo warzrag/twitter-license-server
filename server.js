@@ -697,7 +697,7 @@ app.post('/api/admin/keys-with-users', checkAdminAuth, async (req, res) => {
         // Pour chaque clé, récupérer les utilisateurs VA associés
         const keysWithUsers = await Promise.all(keysResult.rows.map(async (key) => {
             const usersResult = await pool.query(
-                'SELECT username, role, created_at, last_login FROM users WHERE license_key = $1',
+                'SELECT username, role, created_at, last_login FROM users WHERE license_key = $1 ORDER BY role, username',
                 [key.license_key]
             );
 
@@ -718,9 +718,16 @@ app.post('/api/admin/keys-with-users', checkAdminAuth, async (req, res) => {
             };
         }));
 
+        // Récupérer les admins sans clé
+        const adminsResult = await pool.query(
+            'SELECT username, role, created_at, last_login FROM users WHERE role = $1 AND (license_key IS NULL OR license_key = \'\') ORDER BY username',
+            ['admin']
+        );
+
         res.json({
             success: true,
-            keysWithUsers: keysWithUsers
+            keysWithUsers: keysWithUsers,
+            adminsWithoutKeys: adminsResult.rows
         });
     } catch (error) {
         console.error('Erreur keys-with-users:', error);
