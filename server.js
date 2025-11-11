@@ -207,17 +207,40 @@ app.post('/api/verify', async (req, res) => {
 
 const ADMIN_PASSWORD = 'admin123';
 
-function checkAdminAuth(req, res, next) {
-    const { password } = req.body;
+async function checkAdminAuth(req, res, next) {
+    const { password, username } = req.body;
 
-    if (password !== ADMIN_PASSWORD) {
-        return res.status(401).json({
-            success: false,
-            message: 'Mot de passe incorrect'
-        });
+    // Vérifier si c'est l'ancien système (mot de passe admin fixe)
+    if (password === ADMIN_PASSWORD) {
+        req.userRole = 'admin';
+        return next();
     }
 
-    next();
+    // Vérifier si c'est un utilisateur avec rôle admin ou creator
+    if (username && password) {
+        try {
+            const result = await pool.query(
+                'SELECT role FROM users WHERE username = $1 AND password = $2',
+                [username, password]
+            );
+
+            if (result.rows.length > 0) {
+                const user = result.rows[0];
+                if (user.role === 'admin' || user.role === 'creator') {
+                    req.userRole = user.role;
+                    req.username = username;
+                    return next();
+                }
+            }
+        } catch (error) {
+            console.error('Erreur checkAdminAuth:', error);
+        }
+    }
+
+    return res.status(401).json({
+        success: false,
+        message: 'Authentification requise'
+    });
 }
 
 // Liste toutes les clés
@@ -585,9 +608,9 @@ app.post('/api/login', async (req, res) => {
 
 // Créer un utilisateur (admin/creator uniquement)
 app.post('/api/admin/create-user', checkAdminAuth, async (req, res) => {
-    const { username, userPassword, role, licenseKey } = req.body;
+    const { newUsername, userPassword, role, licenseKey } = req.body;
 
-    if (!username || !userPassword || !role) {
+    if (!newUsername || !userPassword || !role) {
         return res.status(400).json({
             success: false,
             message: 'Username, password et rôle requis'
@@ -611,7 +634,7 @@ app.post('/api/admin/create-user', checkAdminAuth, async (req, res) => {
     try {
         await pool.query(
             'INSERT INTO users (username, password, role, license_key) VALUES ($1, $2, $3, $4)',
-            [username, userPassword, role, licenseKey || null]
+            [newUsername, userPassword, role, licenseKey || null]
         );
 
         res.json({
@@ -737,9 +760,9 @@ app.post('/api/admin/keys-with-users', checkAdminAuth, async (req, res) => {
 
 // Modifier le rôle d'un utilisateur
 app.post('/api/admin/update-user-role', checkAdminAuth, async (req, res) => {
-    const { username, newRole, newLicenseKey } = req.body;
+    const { targetUsername, newRole, newLicenseKey } = req.body;
 
-    if (username === 'creator') {
+    if (targetUsername === 'creator') {
         return res.status(403).json({
             success: false,
             message: 'Le rôle du créateur ne peut pas être modifié'
@@ -763,7 +786,7 @@ app.post('/api/admin/update-user-role', checkAdminAuth, async (req, res) => {
     try {
         await pool.query(
             'UPDATE users SET role = $1, license_key = $2 WHERE username = $3',
-            [newRole, newRole === 'va' ? newLicenseKey : null, username]
+            [newRole, newRole === 'va' ? newLicenseKey : null, targetUsername]
         );
 
         res.json({
@@ -795,10 +818,10 @@ app.post('/api/admin/guests', checkAdminAuth, async (req, res) => {
 
 // Supprimer un utilisateur (admin/creator uniquement, sauf le créateur)
 app.post('/api/admin/delete-user', checkAdminAuth, async (req, res) => {
-    const { username } = req.body;
+    const { targetUsername } = req.body;
 
     // Empêcher la suppression du créateur
-    if (username === 'creator') {
+    if (targetUsername === 'creator') {
         return res.status(403).json({
             success: false,
             message: 'Le compte créateur ne peut pas être supprimé'
@@ -808,7 +831,7 @@ app.post('/api/admin/delete-user', checkAdminAuth, async (req, res) => {
     try {
         const result = await pool.query(
             'DELETE FROM users WHERE username = $1 RETURNING *',
-            [username]
+            [targetUsername]
         );
 
         if (result.rows.length === 0) {
@@ -830,12 +853,12 @@ app.post('/api/admin/delete-user', checkAdminAuth, async (req, res) => {
 
 // Supprimer un invité (admin uniquement - compatibilité)
 app.post('/api/admin/delete-guest', checkAdminAuth, async (req, res) => {
-    const { username } = req.body;
+    const { guestUsername } = req.body;
 
     try {
         const result = await pool.query(
             'DELETE FROM guest_users WHERE username = $1 RETURNING *',
-            [username]
+            [guestUsername]
         );
 
         if (result.rows.length === 0) {

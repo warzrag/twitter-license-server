@@ -483,7 +483,7 @@
                 const response = await fetch(`${API_URL}/admin/create-key`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ password: adminPassword, owner })
+                    body: JSON.stringify({ password: adminPassword, username: username, owner })
                 });
 
                 const data = await response.json();
@@ -516,7 +516,7 @@
                 const response = await fetch(`${API_URL}/admin/toggle-key`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ password: adminPassword, licenseKey })
+                    body: JSON.stringify({ password: adminPassword, username: username, licenseKey })
                 });
 
                 const data = await response.json();
@@ -538,7 +538,7 @@
                 const response = await fetch(`${API_URL}/admin/delete-key`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ password: adminPassword, licenseKey })
+                    body: JSON.stringify({ password: adminPassword, username: username, licenseKey })
                 });
 
                 const data = await response.json();
@@ -560,7 +560,7 @@
                 const response = await fetch(`${API_URL}/admin/reset-comments`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ password: adminPassword, licenseKey })
+                    body: JSON.stringify({ password: adminPassword, username: username, licenseKey })
                 });
 
                 const data = await response.json();
@@ -598,7 +598,8 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         password: adminPassword,
-                        username: usernameInput,
+                        username: username,
+                        newUsername: usernameInput,
                         userPassword: userPassword,
                         role: role,
                         licenseKey: licenseKey
@@ -632,7 +633,7 @@
                 const response = await fetch(`${API_URL}/admin/keys`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ password: adminPassword })
+                    body: JSON.stringify({ password: adminPassword, username: username })
                 });
 
                 const data = await response.json();
@@ -651,7 +652,7 @@
                 const response = await fetch(`${API_URL}/admin/logs`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ password: adminPassword })
+                    body: JSON.stringify({ password: adminPassword, username: username })
                 });
 
                 const data = await response.json();
@@ -687,7 +688,7 @@
                 const response = await fetch(`${API_URL}/admin/keys-with-users`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ password: adminPassword })
+                    body: JSON.stringify({ password: adminPassword, username: username })
                 });
 
                 const data = await response.json();
@@ -872,7 +873,7 @@
             fetch(`${API_URL}/admin/keys`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ password: adminPassword })
+                body: JSON.stringify({ password: adminPassword, username: username })
             })
             .then(res => res.json())
             .then(data => {
@@ -906,7 +907,8 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         password: adminPassword,
-                        username: editingUser.username,
+                        username: username,
+                        targetUsername: editingUser.username,
                         newRole: newRole,
                         newLicenseKey: newLicenseKey
                     })
@@ -979,7 +981,7 @@
                 const response = await fetch(`${API_URL}/admin/users`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ password: adminPassword })
+                    body: JSON.stringify({ password: adminPassword, username: username })
                 });
 
                 const data = await response.json();
@@ -1027,14 +1029,14 @@
             document.getElementById('usersList').innerHTML = (usersHTML + guestsHTML) || '<p style="color: #8b949e; text-align: center;">Aucun utilisateur</p>';
         }
 
-        async function deleteUser(username) {
-            if (!confirm(`Supprimer l'utilisateur ${username} ?`)) return;
+        async function deleteUser(targetUsername) {
+            if (!confirm(`Supprimer l'utilisateur ${targetUsername} ?`)) return;
 
             try {
                 const response = await fetch(`${API_URL}/admin/delete-user`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ password: adminPassword, username })
+                    body: JSON.stringify({ password: adminPassword, username: username, targetUsername: targetUsername })
                 });
 
                 const data = await response.json();
@@ -1180,14 +1182,14 @@
             document.getElementById('publicStats').innerHTML = html || (stats.length <= 3 ? '' : '<p style="color: #8b949e; text-align: center;">Aucune autre statistique</p>');
         }
 
-        async function deleteGuest(username) {
-            if (!confirm(`Supprimer l'invité ${username} ?`)) return;
+        async function deleteGuest(guestUsername) {
+            if (!confirm(`Supprimer l'invité ${guestUsername} ?`)) return;
 
             try {
                 const response = await fetch(`${API_URL}/admin/delete-guest`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ password: adminPassword, username })
+                    body: JSON.stringify({ password: adminPassword, username: username, guestUsername: guestUsername })
                 });
 
                 const data = await response.json();
