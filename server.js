@@ -704,9 +704,10 @@ app.post('/api/admin/create-guest', checkAdminAuth, async (req, res) => {
 // Liste des utilisateurs (admin/creator uniquement)
 app.post('/api/admin/users', checkAdminAuth, async (req, res) => {
     try {
+        // Afficher TOUS les utilisateurs (y compris le créateur)
+        // Le frontend cachera les boutons de modification pour le créateur si l'utilisateur est admin
         const usersResult = await pool.query(
-            'SELECT id, username, role, license_key, created_at, last_login FROM users WHERE role != $1 ORDER BY created_at DESC',
-            ['creator']
+            'SELECT id, username, role, license_key, created_at, last_login FROM users ORDER BY role DESC, created_at DESC'
         );
 
         const guestsResult = await pool.query(
