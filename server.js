@@ -793,6 +793,7 @@ app.post('/api/admin/update-key-role', checkAdminAuth, async (req, res) => {
     }
 
     try {
+        // Mettre à jour le rôle de la clé
         const result = await pool.query(
             'UPDATE license_keys SET role = $1 WHERE license_key = $2 RETURNING *',
             [newRole, licenseKey]
@@ -805,9 +806,21 @@ app.post('/api/admin/update-key-role', checkAdminAuth, async (req, res) => {
             });
         }
 
+        // 🔄 SYNCHRONISATION : Mettre à jour le rôle de tous les utilisateurs ayant cette clé
+        const usersResult = await pool.query(
+            'UPDATE users SET role = $1 WHERE license_key = $2 RETURNING username',
+            [newRole, licenseKey]
+        );
+
+        console.log(`✅ Clé ${licenseKey} → rôle ${newRole}`);
+        if (usersResult.rows.length > 0) {
+            const usernames = usersResult.rows.map(u => u.username).join(', ');
+            console.log(`✅ Utilisateurs synchronisés (${usersResult.rows.length}): ${usernames}`);
+        }
+
         res.json({
             success: true,
-            message: 'Rôle de la clé mis à jour'
+            message: `Rôle mis à jour (clé + ${usersResult.rows.length} utilisateur(s))`
         });
     } catch (error) {
         console.error('Erreur update-key-role:', error);
