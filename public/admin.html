@@ -977,6 +977,100 @@
             }
         }
 
+        function openMigrateGuestModal(guestUsername) {
+            const modal = `
+                <div id="migrateGuestModal" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 1000;">
+                    <div style="background: #161b22; padding: 30px; border-radius: 16px; max-width: 500px; width: 90%; border: 1px solid #30363d; box-shadow: 0 8px 32px rgba(0,0,0,0.5);">
+                        <h2 style="color: #c9d1d9; margin-bottom: 20px; font-size: 24px;">🔄 Migrer vers le nouveau système</h2>
+                        <p style="color: #8b949e; margin-bottom: 20px;">Utilisateur : <strong style="color: #58a6ff;">${guestUsername}</strong></p>
+
+                        <label style="color: #8b949e; display: block; margin-bottom: 8px;">Nouveau rôle :</label>
+                        <select id="modalMigrateRole" style="width: 100%; padding: 14px 16px; margin-bottom: 16px; border: 1px solid #30363d; border-radius: 10px; font-size: 15px; background: #0d1117; color: #c9d1d9;">
+                            <option value="admin">🔐 Admin</option>
+                            <option value="va">📊 VA</option>
+                        </select>
+
+                        <div id="modalMigrateLicenseKeyContainer" style="display: none;">
+                            <label style="color: #8b949e; display: block; margin-bottom: 8px;">Clé de licence :</label>
+                            <select id="modalMigrateLicenseKey" style="width: 100%; padding: 14px 16px; margin-bottom: 16px; border: 1px solid #30363d; border-radius: 10px; font-size: 15px; background: #0d1117; color: #c9d1d9;">
+                                <option value="">Chargement...</option>
+                            </select>
+                        </div>
+
+                        <div style="display: flex; gap: 10px; margin-top: 20px;">
+                            <button onclick="saveMigration('${guestUsername}')" style="flex: 1; background: linear-gradient(135deg, #238636, #2ea043); color: white; border: none; padding: 14px; border-radius: 10px; cursor: pointer; font-weight: 600; box-shadow: 0 4px 12px rgba(35, 134, 54, 0.3);">✅ Migrer</button>
+                            <button onclick="closeMigrateModal()" style="flex: 1; background: linear-gradient(135deg, #da3633, #f85149); color: white; border: none; padding: 14px; border-radius: 10px; cursor: pointer; font-weight: 600; box-shadow: 0 4px 12px rgba(218, 54, 51, 0.3);">❌ Annuler</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.body.insertAdjacentHTML('beforeend', modal);
+
+            // Gérer l'affichage du sélecteur de licence
+            document.getElementById('modalMigrateRole').addEventListener('change', function() {
+                const container = document.getElementById('modalMigrateLicenseKeyContainer');
+                container.style.display = this.value === 'va' ? 'block' : 'none';
+            });
+
+            // Charger les clés de licence pour le sélecteur
+            fetch(`${API_URL}/admin/keys`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password: adminPassword, username: username })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    const options = Object.entries(data.keys).map(([key, keyData]) =>
+                        `<option value="${key}">${keyData.owner} - ${key}</option>`
+                    ).join('');
+                    document.getElementById('modalMigrateLicenseKey').innerHTML = '<option value="">Sélectionner une clé</option>' + options;
+                }
+            });
+        }
+
+        function closeMigrateModal() {
+            const modal = document.getElementById('migrateGuestModal');
+            if (modal) modal.remove();
+        }
+
+        async function saveMigration(guestUsername) {
+            const newRole = document.getElementById('modalMigrateRole').value;
+            const licenseKey = newRole === 'va' ? document.getElementById('modalMigrateLicenseKey').value : null;
+
+            if (newRole === 'va' && !licenseKey) {
+                alert('Veuillez sélectionner une clé de licence pour le VA');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/admin/migrate-guest`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        password: adminPassword,
+                        username: username,
+                        guestUsername: guestUsername,
+                        newRole: newRole,
+                        licenseKey: licenseKey
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    alert('✅ Migration réussie ! ' + guestUsername + ' est maintenant ' + (newRole === 'admin' ? 'Admin' : 'VA'));
+                    closeMigrateModal();
+                    loadUsers();
+                } else {
+                    alert('❌ Erreur: ' + data.message);
+                }
+            } catch (error) {
+                alert('❌ Erreur de connexion');
+            }
+        }
+
         async function loadVAStats() {
             try {
                 const response = await fetch(`${API_URL}/va/my-stats`, {
@@ -1072,12 +1166,13 @@
 
             const guestsHTML = guests.map(guest => `
                 <div class="key-card">
-                    <div style="font-size: 18px; font-weight: bold; color: #c9d1d9 !important; margin-bottom: 10px;">👤 ${guest.username} <span style="background: #8b949e; color: white; padding: 4px 10px; border-radius: 6px; font-size: 12px; margin-left: 10px;">Guest (ancien)</span></div>
+                    <div style="font-size: 18px; font-weight: bold; color: #c9d1d9 !important; margin-bottom: 10px;">👤 ${guest.username} <span style="background: #8b949e; color: white; padding: 4px 10px; border-radius: 6px; font-size: 12px; margin-left: 10px;">Guest (ancien système)</span></div>
                     <div class="key-info">
                         Créé: ${new Date(guest.created_at).toLocaleString('fr-FR')}<br>
                         Dernière connexion: ${guest.last_login ? new Date(guest.last_login).toLocaleString('fr-FR') : 'Jamais'}
                     </div>
                     <div class="key-actions">
+                        <button style="background: linear-gradient(135deg, #238636, #2ea043); box-shadow: 0 4px 12px rgba(35, 134, 54, 0.3);" onclick="openMigrateGuestModal('${guest.username}')">🔄 Migrer vers nouveau système</button>
                         <button class="btn-danger" onclick="deleteGuest('${guest.username}')">🗑️ Supprimer</button>
                     </div>
                 </div>
