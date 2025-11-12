@@ -922,6 +922,64 @@ app.post('/api/admin/delete-user', checkAdminAuth, async (req, res) => {
     }
 });
 
+// Migrer un guest vers le nouveau système users
+app.post('/api/admin/migrate-guest', checkAdminAuth, async (req, res) => {
+    const { guestUsername, newRole, licenseKey } = req.body;
+
+    if (!guestUsername || !newRole) {
+        return res.status(400).json({
+            success: false,
+            message: 'Username et rôle requis'
+        });
+    }
+
+    if (!['admin', 'va'].includes(newRole)) {
+        return res.status(400).json({
+            success: false,
+            message: 'Rôle invalide (admin ou va)'
+        });
+    }
+
+    try {
+        // Récupérer le guest
+        const guestResult = await pool.query(
+            'SELECT * FROM guest_users WHERE username = $1',
+            [guestUsername]
+        );
+
+        if (guestResult.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Invité non trouvé'
+            });
+        }
+
+        const guest = guestResult.rows[0];
+
+        // Insérer dans la table users
+        await pool.query(
+            'INSERT INTO users (username, password, role, license_key, created_at) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (username) DO UPDATE SET role = $3, license_key = $4',
+            [guest.username, guest.password, newRole, licenseKey || null, guest.created_at]
+        );
+
+        // Supprimer de guest_users
+        await pool.query(
+            'DELETE FROM guest_users WHERE username = $1',
+            [guestUsername]
+        );
+
+        console.log(`✅ Migré ${guestUsername} de guest → ${newRole}`);
+
+        res.json({
+            success: true,
+            message: `${guestUsername} migré vers ${newRole} avec succès`
+        });
+    } catch (error) {
+        console.error('Erreur migrate-guest:', error);
+        res.status(500).json({ success: false, message: 'Erreur serveur' });
+    }
+});
+
 // Supprimer un invité (admin uniquement - compatibilité)
 app.post('/api/admin/delete-guest', checkAdminAuth, async (req, res) => {
     const { guestUsername } = req.body;
