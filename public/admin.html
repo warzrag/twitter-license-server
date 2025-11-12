@@ -445,10 +445,12 @@
                 // Créateur : tout afficher
                 document.getElementById('headerTitle').textContent = '👑 Panneau Créateur';
                 document.getElementById('headerSubtitle').textContent = 'Accès complet au système';
+                // Tout est déjà affiché par défaut
             } else if (userRole === 'admin') {
-                // Admin : tout afficher sauf compte créateur
+                // Admin : EXACTEMENT les mêmes droits que le créateur
                 document.getElementById('headerTitle').textContent = '🔐 Panneau Admin';
-                document.getElementById('headerSubtitle').textContent = 'Gérez les licences et utilisateurs';
+                document.getElementById('headerSubtitle').textContent = 'Accès complet (sauf suppression du créateur)';
+                // Tout est déjà affiché par défaut
             } else if (userRole === 'guest') {
                 // Guest (compatibilité) : lecture seule
                 document.getElementById('createKeyPanel').style.display = 'none';
